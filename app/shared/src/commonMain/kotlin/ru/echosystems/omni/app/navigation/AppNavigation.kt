@@ -15,6 +15,8 @@ import ru.echosystems.omni.app.feature.auth.AuthRepository
 import ru.echosystems.omni.app.feature.auth.AuthScreen
 import ru.echosystems.omni.app.feature.auth.AuthViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentRepository
+import ru.echosystems.omni.app.feature.equipment.EquipmentDetailScreen
+import ru.echosystems.omni.app.feature.equipment.EquipmentDetailViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentViewModel
 
@@ -31,9 +33,22 @@ fun AppNavigation() {
     val state by viewModel.state.collectAsState()
     val equipmentViewModel = remember { EquipmentViewModel(EquipmentRepository(apiClient)) }
     val equipmentState by equipmentViewModel.state.collectAsState()
+    val equipmentDetailViewModel = remember { EquipmentDetailViewModel(EquipmentRepository(apiClient)) }
+    val equipmentDetailState by equipmentDetailViewModel.state.collectAsState()
+    var selectedEquipmentId by remember { mutableStateOf<Long?>(null) }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         if (state.user == null) AuthScreen(state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login)
-        else EquipmentScreen(equipmentState, equipmentViewModel::onSearchChanged, equipmentViewModel::load)
+        else if (selectedEquipmentId == null) {
+            EquipmentScreen(equipmentState, equipmentViewModel::onSearchChanged, equipmentViewModel::load) { selectedEquipmentId = it }
+        } else {
+            EquipmentDetailScreen(
+                equipmentId = selectedEquipmentId!!,
+                state = equipmentDetailState,
+                onLoad = equipmentDetailViewModel::load,
+                onBack = { selectedEquipmentId = null },
+                onChangeStatus = equipmentDetailViewModel::changeStatus
+            )
+        }
     }
 }

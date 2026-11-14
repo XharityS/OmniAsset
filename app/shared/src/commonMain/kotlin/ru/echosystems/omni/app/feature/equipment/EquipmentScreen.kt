@@ -43,7 +43,8 @@ import ru.echosystems.omni.app.ui.OmniStatusChip
 fun EquipmentScreen(
     state: EquipmentUiState,
     onSearchChanged: (String) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onItemClick: (Long) -> Unit
 ) {
     var searchFocused by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { onRefresh() }
@@ -95,7 +96,7 @@ fun EquipmentScreen(
                 EmptyEquipmentState(Modifier.fillMaxWidth().weight(1f))
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(state.items, key = { it.id }) { EquipmentCard(it) }
+                    items(state.items, key = { it.id }) { EquipmentCard(it, onItemClick) }
                 }
             }
         }
@@ -113,8 +114,11 @@ private fun SummaryCard(title: String, value: String, modifier: Modifier = Modif
 }
 
 @Composable
-private fun EquipmentCard(item: EquipmentRow) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))) {
+private fun EquipmentCard(item: EquipmentRow, onItemClick: (Long) -> Unit) {
+    Card(
+        onClick = { onItemClick(item.id) },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+    ) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 modifier = Modifier.size(44.dp),
