@@ -165,15 +165,31 @@ fun Application.module() {
             }
 
             post("/api/equipment") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@post call.respond(HttpStatusCode.Forbidden)
                 val id = equipmentCrudRepository.create(call.receive<EquipmentUpsertRequest>())
                 call.respond(HttpStatusCode.Created, mapOf("id" to id))
             }
 
             put("/api/equipment/{id}") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@put call.respond(HttpStatusCode.Forbidden)
                 val id = call.parameters["id"]?.toLongOrNull()
                     ?: return@put call.respondText("Invalid equipment id", status = HttpStatusCode.BadRequest)
                 equipmentCrudRepository.update(id, call.receive<EquipmentUpsertRequest>())
                 call.respondText("Equipment updated")
+            }
+
+            post("/api/equipment/{id}/archive") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@post call.respond(HttpStatusCode.Forbidden)
+                val id = call.parameters["id"]?.toLongOrNull()
+                    ?: return@post call.respond(HttpStatusCode.BadRequest)
+                actionsRepository.changeStatus(
+                    id,
+                    ChangeEquipmentStatusRequest("written_off", "Equipment archived")
+                )
+                call.respondText("Equipment archived")
             }
 
             get("/api/summary/statuses") {
