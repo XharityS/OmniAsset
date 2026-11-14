@@ -1,13 +1,16 @@
 package ru.echosystems.omni
 
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.serialization.json.Json
 import ru.echosystems.omni.database.DatabaseFactory
 import ru.echosystems.omni.database.EquipmentRepository
 
@@ -17,6 +20,10 @@ fun main() {
 }
 
 fun Application.module() {
+    install(ContentNegotiation) {
+        json(Json { ignoreUnknownKeys = true })
+    }
+
     DatabaseFactory.init(environment.config)
     val equipmentRepository = EquipmentRepository()
     val reportSemaphore = Semaphore(permits = 3)
@@ -37,9 +44,7 @@ fun Application.module() {
         get("/api/equipment") {
             val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 50
             val offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0
-
-            val equipment = equipmentRepository.findPage(limit, offset)
-            call.respond(equipment)
+            call.respond(equipmentRepository.findPage(limit, offset))
         }
 
         get("/api/reports/equipment") {
