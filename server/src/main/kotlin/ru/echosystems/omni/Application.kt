@@ -21,6 +21,8 @@ import ru.echosystems.omni.database.ChangeEquipmentStatusRequest
 import ru.echosystems.omni.database.AdminRepository
 import ru.echosystems.omni.database.ReferenceUpsertRequest
 import ru.echosystems.omni.database.UserCreateRequest
+import ru.echosystems.omni.database.DirectoryAdminRepository
+import ru.echosystems.omni.database.EmployeeUpsertRequest
 import ru.echosystems.omni.database.EquipmentCrudRepository
 import ru.echosystems.omni.database.EquipmentUpsertRequest
 import ru.echosystems.omni.database.DatabaseFactory
@@ -77,6 +79,7 @@ fun Application.module() {
     val equipmentCrudRepository = EquipmentCrudRepository()
     val referenceRepository = ReferenceRepository()
     val adminRepository = AdminRepository()
+    val directoryAdminRepository = DirectoryAdminRepository()
     val actionsRepository = EquipmentActionsRepository()
     val reportSemaphore = Semaphore(permits = 3)
 
@@ -251,6 +254,43 @@ fun Application.module() {
                     .getOrNull() ?: return@post call.respond(HttpStatusCode.BadRequest)
                 adminRepository.blockUser(id)
                 call.respondText("User blocked")
+            }
+
+            get("/api/admin/users") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@get call.respond(HttpStatusCode.Forbidden)
+                call.respond(directoryAdminRepository.users())
+            }
+
+            get("/api/admin/employees") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@get call.respond(HttpStatusCode.Forbidden)
+                call.respond(directoryAdminRepository.employees())
+            }
+
+            post("/api/admin/employees") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@post call.respond(HttpStatusCode.Forbidden)
+                val id = directoryAdminRepository.createEmployee(call.receive<EmployeeUpsertRequest>())
+                call.respond(HttpStatusCode.Created, mapOf("id" to id))
+            }
+
+            put("/api/admin/employees/{id}") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@put call.respond(HttpStatusCode.Forbidden)
+                val id = call.parameters["id"]?.toLongOrNull()
+                    ?: return@put call.respond(HttpStatusCode.BadRequest)
+                directoryAdminRepository.updateEmployee(id, call.receive<EmployeeUpsertRequest>())
+                call.respondText("Employee updated")
+            }
+
+            post("/api/admin/employees/{id}/block") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@post call.respond(HttpStatusCode.Forbidden)
+                val id = call.parameters["id"]?.toLongOrNull()
+                    ?: return@post call.respond(HttpStatusCode.BadRequest)
+                directoryAdminRepository.blockEmployee(id)
+                call.respondText("Employee blocked")
             }
 
             get("/api/references/{type}") {
