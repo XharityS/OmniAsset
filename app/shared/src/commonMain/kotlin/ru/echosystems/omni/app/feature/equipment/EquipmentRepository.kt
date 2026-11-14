@@ -2,6 +2,7 @@ package ru.echosystems.omni.app.feature.equipment
 
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import ru.echosystems.omni.app.core.network.ApiClient
 import ru.echosystems.omni.app.core.network.ApiException
 
