@@ -14,3 +14,9 @@ database:
   idleTimeout: ${?DATABASE_IDLE_TIMEOUT}
   maxLifetime: ${?DATABASE_MAX_LIFETIME}
   statementTimeoutMs: ${?DATABASE_STATEMENT_TIMEOUT_MS}
+
+jwt:
+  secret: ${?JWT_SECRET}
+  issuer: "omniasset"
+  audience: "omniasset-clients"
+  validityMs: ${?JWT_VALIDITY_MS}
