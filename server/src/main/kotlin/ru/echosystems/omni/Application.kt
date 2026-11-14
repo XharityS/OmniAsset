@@ -24,6 +24,7 @@ import ru.echosystems.omni.database.DatabaseFactory
 import ru.echosystems.omni.database.EquipmentActionsRepository
 import ru.echosystems.omni.database.EquipmentRepository
 import ru.echosystems.omni.database.MoveEquipmentRequest
+import ru.echosystems.omni.database.ReferenceRepository
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
@@ -71,6 +72,7 @@ fun Application.module() {
     val authRepository = AuthRepository()
     val equipmentRepository = EquipmentRepository()
     val equipmentCrudRepository = EquipmentCrudRepository()
+    val referenceRepository = ReferenceRepository()
     val actionsRepository = EquipmentActionsRepository()
     val reportSemaphore = Semaphore(permits = 3)
 
@@ -195,6 +197,12 @@ fun Application.module() {
                     }
                 }
                 call.respondText(csv, io.ktor.http.ContentType.Text.CSV)
+            }
+
+            get("/api/references/{type}") {
+                val type = call.parameters["type"]
+                    ?: return@get call.respondText("Reference type is required", status = HttpStatusCode.BadRequest)
+                call.respond(referenceRepository.list(type))
             }
 
             get("/api/reports/equipment") {
