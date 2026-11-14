@@ -18,6 +18,9 @@ import ru.echosystems.omni.auth.AuthRepository
 import ru.echosystems.omni.auth.JwtService
 import ru.echosystems.omni.auth.LoginRequest
 import ru.echosystems.omni.database.ChangeEquipmentStatusRequest
+import ru.echosystems.omni.database.AdminRepository
+import ru.echosystems.omni.database.ReferenceUpsertRequest
+import ru.echosystems.omni.database.UserCreateRequest
 import ru.echosystems.omni.database.EquipmentCrudRepository
 import ru.echosystems.omni.database.EquipmentUpsertRequest
 import ru.echosystems.omni.database.DatabaseFactory
@@ -73,6 +76,7 @@ fun Application.module() {
     val equipmentRepository = EquipmentRepository()
     val equipmentCrudRepository = EquipmentCrudRepository()
     val referenceRepository = ReferenceRepository()
+    val adminRepository = AdminRepository()
     val actionsRepository = EquipmentActionsRepository()
     val reportSemaphore = Semaphore(permits = 3)
 
@@ -197,6 +201,40 @@ fun Application.module() {
                     }
                 }
                 call.respondText(csv, io.ktor.http.ContentType.Text.CSV)
+            }
+
+            post("/api/admin/references/{type}") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@post call.respond(HttpStatusCode.Forbidden)
+                val type = call.parameters["type"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+                val id = adminRepository.createReference(type, call.receive<ReferenceUpsertRequest>())
+                call.respond(HttpStatusCode.Created, mapOf("id" to id))
+            }
+
+            put("/api/admin/references/{type}/{id}") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@put call.respond(HttpStatusCode.Forbidden)
+                val type = call.parameters["type"] ?: return@put call.respond(HttpStatusCode.BadRequest)
+                val id = call.parameters["id"]?.toLongOrNull()
+                    ?: return@put call.respond(HttpStatusCode.BadRequest)
+                adminRepository.updateReference(type, id, call.receive<ReferenceUpsertRequest>())
+                call.respondText("Reference updated")
+            }
+
+            post("/api/admin/users") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@post call.respond(HttpStatusCode.Forbidden)
+                val id = adminRepository.createUser(call.receive<UserCreateRequest>())
+                call.respond(HttpStatusCode.Created, mapOf("id" to id.toString()))
+            }
+
+            post("/api/admin/users/{id}/block") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@post call.respond(HttpStatusCode.Forbidden)
+                val id = runCatching { java.util.UUID.fromString(call.parameters["id"]) }
+                    .getOrNull() ?: return@post call.respond(HttpStatusCode.BadRequest)
+                adminRepository.blockUser(id)
+                call.respondText("User blocked")
             }
 
             get("/api/references/{type}") {
