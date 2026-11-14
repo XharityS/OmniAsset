@@ -1,6 +1,5 @@
 package ru.echosystems.omni
 
-import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -42,16 +41,32 @@ fun Application.module() {
         }
 
         get("/api/equipment") {
-            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 50
-            val offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0
-            call.respond(equipmentRepository.findPage(limit, offset))
+            call.respond(
+                equipmentRepository.findPage(
+                    search = call.request.queryParameters["search"],
+                    statusCode = call.request.queryParameters["status"],
+                    categoryId = call.request.queryParameters["categoryId"]?.toLongOrNull(),
+                    locationId = call.request.queryParameters["locationId"]?.toLongOrNull(),
+                    employeeId = call.request.queryParameters["employeeId"]?.toLongOrNull(),
+                    limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 50,
+                    offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0
+                )
+            )
         }
 
         get("/api/reports/equipment") {
             reportSemaphore.withPermit {
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 100
-                val offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0
-                call.respond(equipmentRepository.findPage(limit, offset))
+                call.respond(
+                    equipmentRepository.findPage(
+                        search = call.request.queryParameters["search"],
+                        statusCode = call.request.queryParameters["status"],
+                        categoryId = call.request.queryParameters["categoryId"]?.toLongOrNull(),
+                        locationId = call.request.queryParameters["locationId"]?.toLongOrNull(),
+                        employeeId = call.request.queryParameters["employeeId"]?.toLongOrNull(),
+                        limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 100,
+                        offset = call.request.queryParameters["offset"]?.toLongOrNull() ?: 0
+                    )
+                )
             }
         }
     }
