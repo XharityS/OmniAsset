@@ -37,9 +37,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
-import ru.echosystems.omni.app.shared.generated.resources.Res
-import ru.echosystems.omni.app.shared.generated.resources.omni_wallpaper_dark
-import ru.echosystems.omni.app.shared.generated.resources.omni_wallpaper_light
+import omniasset.app.shared.generated.resources.Res
+import omniasset.app.shared.generated.resources.omni_wallpaper_dark
+import omniasset.app.shared.generated.resources.omni_wallpaper_light
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.EyeOff
 import com.composables.icons.lucide.Lucide

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.echosystems.omni.app.core.network.ApiException
 
 @Immutable
 data class AuthUiState(
@@ -48,9 +49,13 @@ class AuthViewModel(
             }.onSuccess { response ->
                 _state.value = _state.value.copy(isLoading = false, user = response)
             }.onFailure { error ->
+                println("OmniAsset login failed: ${error.message}")
                 _state.value = _state.value.copy(
                     isLoading = false,
-                    errorMessage = error.message ?: "Не удалось выполнить вход"
+                    errorMessage = when (error) {
+                        is ApiException -> error.userMessage
+                        else -> "Не удалось подключиться к серверу"
+                    }
                 )
             }
         }
