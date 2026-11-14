@@ -41,6 +41,25 @@ Start the server:
 
 The health check is available at `GET /health`.
 
+### Initial administrator
+
+After the migration, create the first administrator in DBeaver. The password is hashed by PostgreSQL `pgcrypto`:
+
+```sql
+INSERT INTO inventory.app_users (
+    username,
+    password_hash,
+    full_name,
+    role
+)
+VALUES (
+    'admin',
+    crypt('replace-with-your-password', gen_salt('bf')),
+    'Administrator',
+    'admin'
+);
+```
+
 ### Equipment API
 
 After login, send the returned JWT as:
