@@ -1,6 +1,5 @@
 package ru.echosystems.omni
 
-import com.auth0.jwt.JWT
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -34,9 +33,11 @@ fun Application.module() {
         json(Json { ignoreUnknownKeys = true })
     }
 
-    val jwtSecret = environment.config.propertyOrNull("jwt.secret")
-        ?.getString()
+    val jwtSecret = System.getenv("JWT_SECRET")
         ?.takeIf { it.isNotBlank() }
+        ?: environment.config.propertyOrNull("jwt.secret")
+            ?.getString()
+            ?.takeIf { it.isNotBlank() }
         ?: error("JWT_SECRET must be configured")
 
     val jwtService = JwtService(
@@ -70,7 +71,7 @@ fun Application.module() {
     val actionsRepository = EquipmentActionsRepository()
     val reportSemaphore = Semaphore(permits = 3)
 
-    environment.monitor.subscribe(ApplicationStopping) {
+    monitor.subscribe(ApplicationStopping) {
         DatabaseFactory.close()
     }
 
