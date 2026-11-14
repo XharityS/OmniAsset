@@ -7,16 +7,16 @@ database:
   jdbcUrl: $DATABASE_JDBC_URL
   username: $DATABASE_USERNAME
   password: $DATABASE_PASSWORD
-  maximumPoolSize: ${?DATABASE_MAX_POOL_SIZE}
-  minimumIdle: ${?DATABASE_MIN_IDLE}
-  connectionTimeout: ${?DATABASE_CONNECTION_TIMEOUT}
-  validationTimeout: ${?DATABASE_VALIDATION_TIMEOUT}
-  idleTimeout: ${?DATABASE_IDLE_TIMEOUT}
-  maxLifetime: ${?DATABASE_MAX_LIFETIME}
-  statementTimeoutMs: ${?DATABASE_STATEMENT_TIMEOUT_MS}
+  maximumPoolSize: 15
+  minimumIdle: 5
+  connectionTimeout: 5000
+  validationTimeout: 3000
+  idleTimeout: 600000
+  maxLifetime: 1800000
+  statementTimeoutMs: 10000
 
 jwt:
   secret: $JWT_SECRET
   issuer: "omniasset"
   audience: "omniasset-clients"
-  validityMs: ${?JWT_VALIDITY_MS}
+  validityMs: 3600000
