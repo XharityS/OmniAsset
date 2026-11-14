@@ -14,13 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Inventory2
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Login
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,6 +40,8 @@ import org.jetbrains.compose.resources.painterResource
 import ru.echosystems.omni.app.shared.generated.resources.Res
 import ru.echosystems.omni.app.shared.generated.resources.omni_wallpaper_dark
 import ru.echosystems.omni.app.shared.generated.resources.omni_wallpaper_light
+import ru.echosystems.omni.app.ui.OmniIcon
+import ru.echosystems.omni.app.ui.OmniIconKind
 
 @Composable
 fun AuthScreen(
@@ -83,7 +78,7 @@ fun AuthScreen(
                         Box(
                             modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp)),
                             contentAlignment = Alignment.Center
-                        ) { Icon(Icons.Rounded.Inventory2, null, tint = MaterialTheme.colorScheme.onPrimary) }
+                        ) { OmniIcon(OmniIconKind.Inventory, tint = MaterialTheme.colorScheme.onPrimary) }
                         Spacer(Modifier.size(14.dp))
                         Column {
                             Text("OmniAsset", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
@@ -100,7 +95,7 @@ fun AuthScreen(
                         value = state.username,
                         onValueChange = onUsernameChanged,
                         label = { Text("Имя пользователя") },
-                        leadingIcon = { Icon(Icons.Rounded.Person, null) },
+                        leadingIcon = { OmniIcon(OmniIconKind.Person) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -109,10 +104,10 @@ fun AuthScreen(
                         value = state.password,
                         onValueChange = onPasswordChanged,
                         label = { Text("Пароль") },
-                        leadingIcon = { Icon(Icons.Rounded.Lock, null) },
+                        leadingIcon = { OmniIcon(OmniIconKind.Lock) },
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null)
+                                OmniIcon(if (passwordVisible) OmniIconKind.VisibilityOff else OmniIconKind.Visibility)
                             }
                         },
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -130,7 +125,7 @@ fun AuthScreen(
                         if (state.isLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                         } else {
-                            Icon(Icons.Rounded.Login, null)
+                            OmniIcon(OmniIconKind.Login, tint = MaterialTheme.colorScheme.onPrimary)
                             Spacer(Modifier.size(8.dp))
                             Text("Войти")
                         }
