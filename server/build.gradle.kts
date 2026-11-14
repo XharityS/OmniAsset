@@ -17,6 +17,7 @@ dependencies {
     implementation(libs.logback)
     implementation(libs.ktor.serverCore)
     implementation(libs.ktor.serverNetty)
+    implementation("io.ktor:ktor-server-config-yaml-jvm:3.6.0")
     implementation("io.ktor:ktor-server-content-negotiation-jvm:3.6.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:3.6.0")
     implementation("io.ktor:ktor-server-auth-jwt-jvm:3.6.0")
