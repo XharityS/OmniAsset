@@ -40,8 +40,13 @@ import org.jetbrains.compose.resources.painterResource
 import ru.echosystems.omni.app.shared.generated.resources.Res
 import ru.echosystems.omni.app.shared.generated.resources.omni_wallpaper_dark
 import ru.echosystems.omni.app.shared.generated.resources.omni_wallpaper_light
-import ru.echosystems.omni.app.ui.OmniIcon
-import ru.echosystems.omni.app.ui.OmniIconKind
+import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.EyeOff
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Lock
+import com.composables.icons.lucide.LogIn
+import com.composables.icons.lucide.Package
+import com.composables.icons.lucide.User
 
 @Composable
 fun AuthScreen(
@@ -78,7 +83,7 @@ fun AuthScreen(
                         Box(
                             modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp)),
                             contentAlignment = Alignment.Center
-                        ) { OmniIcon(OmniIconKind.Inventory, tint = MaterialTheme.colorScheme.onPrimary) }
+                        ) { Icon(Lucide.Package, null, tint = MaterialTheme.colorScheme.onPrimary) }
                         Spacer(Modifier.size(14.dp))
                         Column {
                             Text("OmniAsset", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
@@ -95,7 +100,7 @@ fun AuthScreen(
                         value = state.username,
                         onValueChange = onUsernameChanged,
                         label = { Text("Имя пользователя") },
-                        leadingIcon = { OmniIcon(OmniIconKind.Person) },
+                        leadingIcon = { Icon(Lucide.User, null) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -104,10 +109,10 @@ fun AuthScreen(
                         value = state.password,
                         onValueChange = onPasswordChanged,
                         label = { Text("Пароль") },
-                        leadingIcon = { OmniIcon(OmniIconKind.Lock) },
+                        leadingIcon = { Icon(Lucide.Lock, null) },
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                OmniIcon(if (passwordVisible) OmniIconKind.VisibilityOff else OmniIconKind.Visibility)
+                                Icon(if (passwordVisible) Lucide.EyeOff else Lucide.Eye, null)
                             }
                         },
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -125,7 +130,7 @@ fun AuthScreen(
                         if (state.isLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                         } else {
-                            OmniIcon(OmniIconKind.Login, tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Lucide.LogIn, null, tint = MaterialTheme.colorScheme.onPrimary)
                             Spacer(Modifier.size(8.dp))
                             Text("Войти")
                         }
