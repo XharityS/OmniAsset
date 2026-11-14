@@ -15,22 +15,25 @@ object DatabaseFactory {
 
     fun init(config: ApplicationConfig): DataSource {
         val hikari = HikariConfig().apply {
-            jdbcUrl = config.propertyOrNull("database.jdbcUrl")?.getString()
-                ?: "jdbc:postgresql://localhost:5432/omniasset?currentSchema=inventory"
-            username = config.propertyOrNull("database.username")?.getString() ?: "postgres"
-            password = config.propertyOrNull("database.password")?.getString() ?: ""
-            maximumPoolSize = config.propertyOrNull("database.maximumPoolSize")
-                ?.getString()?.toIntOrNull() ?: 15
-            minimumIdle = config.propertyOrNull("database.minimumIdle")
-                ?.getString()?.toIntOrNull() ?: 5
-            connectionTimeout = config.propertyOrNull("database.connectionTimeout")
-                ?.getString()?.toLongOrNull() ?: 5_000
-            validationTimeout = config.propertyOrNull("database.validationTimeout")
-                ?.getString()?.toLongOrNull() ?: 3_000
-            idleTimeout = config.propertyOrNull("database.idleTimeout")
-                ?.getString()?.toLongOrNull() ?: 600_000
-            maxLifetime = config.propertyOrNull("database.maxLifetime")
-                ?.getString()?.toLongOrNull() ?: 1_800_000
+            jdbcUrl = envOrConfig(
+                envName = "DATABASE_JDBC_URL",
+                config = config,
+                configPath = "database.jdbcUrl"
+            ) ?: "jdbc:postgresql://localhost:5432/omniasset?currentSchema=inventory"
+            username = envOrConfig("DATABASE_USERNAME", config, "database.username") ?: "postgres"
+            password = envOrConfig("DATABASE_PASSWORD", config, "database.password") ?: ""
+            maximumPoolSize = envOrConfig("DATABASE_MAX_POOL_SIZE", config, "database.maximumPoolSize")
+                ?.toIntOrNull() ?: 15
+            minimumIdle = envOrConfig("DATABASE_MIN_IDLE", config, "database.minimumIdle")
+                ?.toIntOrNull() ?: 5
+            connectionTimeout = envOrConfig("DATABASE_CONNECTION_TIMEOUT", config, "database.connectionTimeout")
+                ?.toLongOrNull() ?: 5_000
+            validationTimeout = envOrConfig("DATABASE_VALIDATION_TIMEOUT", config, "database.validationTimeout")
+                ?.toLongOrNull() ?: 3_000
+            idleTimeout = envOrConfig("DATABASE_IDLE_TIMEOUT", config, "database.idleTimeout")
+                ?.toLongOrNull() ?: 600_000
+            maxLifetime = envOrConfig("DATABASE_MAX_LIFETIME", config, "database.maxLifetime")
+                ?.toLongOrNull() ?: 1_800_000
             poolName = "omniasset-postgres"
             leakDetectionThreshold = 10_000
         }
@@ -60,6 +63,14 @@ object DatabaseFactory {
         )
         return dataSource
     }
+
+    private fun envOrConfig(
+        envName: String,
+        config: ApplicationConfig,
+        configPath: String
+    ): String? =
+        System.getenv(envName)?.takeIf { it.isNotBlank() }
+            ?: config.propertyOrNull(configPath)?.getString()?.takeIf { it.isNotBlank() }
 
     fun close() {
         if (::dataSource.isInitialized) dataSource.close()
