@@ -18,6 +18,8 @@ import ru.echosystems.omni.auth.AuthRepository
 import ru.echosystems.omni.auth.JwtService
 import ru.echosystems.omni.auth.LoginRequest
 import ru.echosystems.omni.database.ChangeEquipmentStatusRequest
+import ru.echosystems.omni.database.EquipmentCrudRepository
+import ru.echosystems.omni.database.EquipmentUpsertRequest
 import ru.echosystems.omni.database.DatabaseFactory
 import ru.echosystems.omni.database.EquipmentActionsRepository
 import ru.echosystems.omni.database.EquipmentRepository
@@ -68,6 +70,7 @@ fun Application.module() {
     DatabaseFactory.init(environment.config)
     val authRepository = AuthRepository()
     val equipmentRepository = EquipmentRepository()
+    val equipmentCrudRepository = EquipmentCrudRepository()
     val actionsRepository = EquipmentActionsRepository()
     val reportSemaphore = Semaphore(permits = 3)
 
@@ -139,6 +142,59 @@ fun Application.module() {
                     call.receive<ChangeEquipmentStatusRequest>()
                 )
                 call.respondText("Equipment status changed")
+            }
+
+            get("/api/equipment/{id}") {
+                val id = call.parameters["id"]?.toLongOrNull()
+                    ?: return@get call.respondText("Invalid equipment id", status = HttpStatusCode.BadRequest)
+                val item = equipmentCrudRepository.findById(id)
+                    ?: return@get call.respondText("Equipment not found", status = HttpStatusCode.NotFound)
+                call.respond(item)
+            }
+
+            get("/api/equipment/{id}/history") {
+                val id = call.parameters["id"]?.toLongOrNull()
+                    ?: return@get call.respondText("Invalid equipment id", status = HttpStatusCode.BadRequest)
+                call.respond(equipmentCrudRepository.history(id))
+            }
+
+            post("/api/equipment") {
+                val id = equipmentCrudRepository.create(call.receive<EquipmentUpsertRequest>())
+                call.respond(HttpStatusCode.Created, mapOf("id" to id))
+            }
+
+            put("/api/equipment/{id}") {
+                val id = call.parameters["id"]?.toLongOrNull()
+                    ?: return@put call.respondText("Invalid equipment id", status = HttpStatusCode.BadRequest)
+                equipmentCrudRepository.update(id, call.receive<EquipmentUpsertRequest>())
+                call.respondText("Equipment updated")
+            }
+
+            get("/api/summary/statuses") {
+                call.respond(equipmentCrudRepository.summary())
+            }
+
+            get("/api/equipment.csv") {
+                val page = equipmentRepository.findPage(
+                    search = call.request.queryParameters["search"],
+                    statusCode = call.request.queryParameters["status"],
+                    categoryId = call.request.queryParameters["categoryId"]?.toLongOrNull(),
+                    locationId = call.request.queryParameters["locationId"]?.toLongOrNull(),
+                    employeeId = call.request.queryParameters["employeeId"]?.toLongOrNull(),
+                    limit = 100,
+                    offset = 0
+                )
+                val csv = buildString {
+                    appendLine("id;inventory_number;serial_number;model;manufacturer;category;status;location;department;responsible")
+                    page.items.forEach { item ->
+                        appendLine(listOf(item.id,item.inventoryNumber,item.serialNumber,item.modelName,
+                            item.manufacturerName,item.categoryName,item.statusName,item.locationName,
+                            item.departmentName,item.responsibleName).joinToString(";") { value ->
+                            value?.toString()?.replace(";", ",") ?: ""
+                        })
+                    }
+                }
+                call.respondText(csv, io.ktor.http.ContentType.Text.CSV)
             }
 
             get("/api/reports/equipment") {
