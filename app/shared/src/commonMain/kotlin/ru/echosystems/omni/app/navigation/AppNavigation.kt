@@ -22,7 +22,12 @@ import ru.echosystems.omni.app.feature.equipment.EquipmentViewModel
 fun AppNavigation() {
     var token by remember { mutableStateOf<String?>(null) }
     val apiClient = remember { ApiClient(defaultApiBaseUrl()) { token } }
-    val viewModel = remember { AuthViewModel(AuthRepository(apiClient)) { token = it.token } }
+    val viewModel = remember {
+        AuthViewModel(
+            repository = AuthRepository(apiClient),
+            onAuthenticated = { response -> token = response.token }
+        )
+    }
     val state by viewModel.state.collectAsState()
     val equipmentViewModel = remember { EquipmentViewModel(EquipmentRepository(apiClient)) }
     val equipmentState by equipmentViewModel.state.collectAsState()
