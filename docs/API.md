@@ -31,13 +31,15 @@ GET /api/equipment — список техники.
 
 GET /api/equipment/{id} — карточка техники.
 
-POST /api/equipment — создание техники. Тело содержит inventoryNumber, serialNumber, modelId, statusId, locationId, departmentId, purchaseDate, commissioningDate, purchasePrice, warrantyUntil, specifications и notes.
+POST /api/equipment — создание техники. Требует роль admin. Тело содержит inventoryNumber, serialNumber, modelId, statusId, locationId, departmentId, purchaseDate, commissioningDate, purchasePrice, warrantyUntil, specifications и notes.
 
-PUT /api/equipment/{id} — изменение техники.
+PUT /api/equipment/{id} — изменение техники. Требует роль admin.
 
 POST /api/equipment/{id}/move — перемещение и смена ответственного. Тело: locationId, departmentId, employeeId, comment. Операция закрывает старое закрепление, создает новое и пишет событие в историю.
 
 POST /api/equipment/{id}/status — смена статуса. Тело: statusCode, comment.
+
+POST /api/equipment/{id}/archive — архивирование техники администратором через статус written_off.
 
 GET /api/equipment/{id}/history — история перемещений и смены статуса.
 
@@ -75,6 +77,6 @@ GET /api/reports/equipment — ограниченный по параллель�
 
 API покрывает авторизацию, поиск, фильтрацию, пагинацию, карточку техники, создание и изменение, перемещения, статусы, историю, справочники, пользователей, сводку и CSV.
 
-Ограничения текущей версии: отдельного архивирования нет, используется статус written_off; полный CRUD есть не для всех справочников; ошибки пока не унифицированы в JSON; TLS требует настройки; права admin для создания и изменения техники нужно уточнить и при необходимости ограничить.
+Ограничения текущей версии: полный CRUD есть не для всех справочников; ошибки пока не унифицированы в JSON; TLS требует настройки.
 
 Для дипломной версии основной API-контур сформирован. Перед сдачей нужно проверить роли, ошибки API и клиентские сценарии.
