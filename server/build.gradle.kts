@@ -24,6 +24,8 @@ dependencies {
     implementation("org.postgresql:postgresql:42.7.8")
     implementation("com.zaxxer:HikariCP:6.3.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("org.flywaydb:flyway-core:11.8.2")
+    implementation("org.flywaydb:flyway-database-postgresql:11.8.2")
 
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
