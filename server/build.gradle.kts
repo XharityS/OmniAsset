@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.ktor.serverNetty)
     implementation("io.ktor:ktor-server-content-negotiation-jvm:3.6.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:3.6.0")
+    implementation("io.ktor:ktor-server-auth-jwt-jvm:3.6.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 
     implementation("org.postgresql:postgresql:42.7.8")
@@ -26,6 +27,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.flywaydb:flyway-core:11.8.2")
     implementation("org.flywaydb:flyway-database-postgresql:11.8.2")
+    implementation("org.mindrot:jbcrypt:0.4")
 
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
