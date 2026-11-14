@@ -1,5 +1,8 @@
 package ru.echosystems.omni.database
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class EquipmentRow(
     val id: Long,
     val inventoryNumber: String,
