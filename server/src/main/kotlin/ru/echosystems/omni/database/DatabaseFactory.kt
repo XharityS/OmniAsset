@@ -3,11 +3,13 @@ package ru.echosystems.omni.database
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.ktor.server.config.ApplicationConfig
+import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
 import javax.sql.DataSource
 
 object DatabaseFactory {
     private val logger = LoggerFactory.getLogger(DatabaseFactory::class.java)
+
     lateinit var dataSource: HikariDataSource
         private set
 
@@ -34,12 +36,28 @@ object DatabaseFactory {
         }
 
         dataSource = HikariDataSource(hikari)
+
         dataSource.connection.use { connection ->
             connection.createStatement().use { statement ->
                 statement.execute("SELECT 1")
             }
         }
-        logger.info("PostgreSQL connected: pool={}, maxSize={}", dataSource.poolName, dataSource.maximumPoolSize)
+
+        Flyway.configure()
+            .dataSource(dataSource)
+            .schemas("inventory")
+            .defaultSchema("inventory")
+            .locations("classpath:db/migration")
+            .baselineOnMigrate(true)
+            .baselineVersion("1")
+            .load()
+            .migrate()
+
+        logger.info(
+            "PostgreSQL connected: pool={}, maxSize={}",
+            dataSource.poolName,
+            dataSource.maximumPoolSize
+        )
         return dataSource
     }
 
