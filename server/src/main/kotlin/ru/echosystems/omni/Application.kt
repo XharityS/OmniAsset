@@ -1,5 +1,6 @@
 package ru.echosystems.omni
 
+import java.sql.SQLException
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -170,7 +171,8 @@ fun Application.module() {
             post("/api/equipment") {
                 if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
                     return@post call.respond(HttpStatusCode.Forbidden)
-                val id = equipmentCrudRepository.create(call.receive<EquipmentUpsertRequest>())
+                val id = call.saveEquipment { equipmentCrudRepository.create(call.receive<EquipmentUpsertRequest>()) }
+                    ?: return@post
                 call.respond(HttpStatusCode.Created, mapOf("id" to id))
             }
 
@@ -179,7 +181,9 @@ fun Application.module() {
                     return@put call.respond(HttpStatusCode.Forbidden)
                 val id = call.parameters["id"]?.toLongOrNull()
                     ?: return@put call.respondText("Invalid equipment id", status = HttpStatusCode.BadRequest)
-                equipmentCrudRepository.update(id, call.receive<EquipmentUpsertRequest>())
+                val updated = call.saveEquipment { equipmentCrudRepository.update(id, call.receive<EquipmentUpsertRequest>()) }
+                    ?: return@put
+                if (!updated) return@put call.respond(HttpStatusCode.NotFound)
                 call.respondText("Equipment updated")
             }
 
@@ -317,3 +321,16 @@ fun Application.module() {
         }
     }
 }
+
+private suspend fun <T : Any> ApplicationCall.saveEquipment(save: suspend () -> T): T? =
+    try {
+        save()
+    } catch (error: SQLException) {
+        when (error.sqlState) {
+            "23505" -> respond(HttpStatusCode.Conflict)
+            "23503", "23514", "22001", "22003", "22007", "22008", "22P02" ->
+                respond(HttpStatusCode.BadRequest)
+            else -> throw error
+        }
+        null
+    }

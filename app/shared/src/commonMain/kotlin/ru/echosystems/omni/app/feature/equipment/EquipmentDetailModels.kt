@@ -22,7 +22,8 @@ data class EquipmentDetails(
     val commissioningDate: String? = null,
     val warrantyUntil: String? = null,
     val purchasePrice: String? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    val statusId: Long? = null
 )
 
 @Serializable

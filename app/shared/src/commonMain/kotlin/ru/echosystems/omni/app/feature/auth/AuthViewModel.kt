@@ -48,8 +48,8 @@ class AuthViewModel(
             runCatching {
                 repository.login(current.username.trim(), current.password)
             }.onSuccess { response ->
-                _state.value = _state.value.copy(isLoading = false, user = response)
                 onAuthenticated(response)
+                _state.value = _state.value.copy(isLoading = false, user = response)
             }.onFailure { error ->
                 println("OmniAsset login failed: ${error.message}")
                 _state.value = _state.value.copy(

@@ -27,13 +27,13 @@ POST /api/auth/login
 
 GET /api/equipment — список техники.
 
-Поддерживаемые параметры: search, status, categoryId, locationId, employeeId, limit, offset. Поиск выполняется по инвентарному номеру, серийному номеру и модели. Максимальный размер страницы — 100.
+Поддерживаемые параметры: search, status, categoryId, locationId, employeeId, limit, offset. Поиск выполняется по инвентарному номеру, серийному номеру, модели и производителю. Максимальный размер страницы — 100.
 
 GET /api/equipment/{id} — карточка техники.
 
 POST /api/equipment — создание техники. Требует роль admin. Тело содержит inventoryNumber, serialNumber, modelId, statusId, locationId, departmentId, purchaseDate, commissioningDate, purchasePrice, warrantyUntil, specifications и notes.
 
-PUT /api/equipment/{id} — изменение техники. Требует роль admin.
+PUT /api/equipment/{id} — изменение техники. Требует роль admin. Без поля specifications или при значении null сохраняются текущие характеристики. При конфликте инвентарного или серийного номера API возвращает 409.
 
 POST /api/equipment/{id}/move — перемещение и смена ответственного. Тело: locationId, departmentId, employeeId, comment. Операция закрывает старое закрепление, создает новое и пишет событие в историю.
 
@@ -47,7 +47,7 @@ GET /api/equipment/{id}/history — история перемещений и с�
 
 GET /api/references/{type}
 
-Поддерживаются categories, manufacturers, locations, departments, employees и statuses.
+Поддерживаются categories, manufacturers, locations, departments, employees, statuses и models. Для models возвращаются id модели и name, включающее производителя и название модели.
 
 ## Администратор
 

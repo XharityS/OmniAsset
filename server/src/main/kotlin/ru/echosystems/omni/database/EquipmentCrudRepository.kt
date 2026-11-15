@@ -23,7 +23,8 @@ data class EquipmentDetails(
     val commissioningDate: String?,
     val warrantyUntil: String?,
     val purchasePrice: String?,
-    val notes: String?
+    val notes: String?,
+    val statusId: Int
 )
 
 @Serializable
@@ -38,7 +39,7 @@ data class EquipmentUpsertRequest(
     val commissioningDate: String? = null,
     val purchasePrice: String? = null,
     val warrantyUntil: String? = null,
-    val specifications: String = "{}",
+    val specifications: String? = null,
     val notes: String? = null
 )
 
@@ -63,7 +64,7 @@ class EquipmentCrudRepository {
                    m.name manufacturer_name,ec.name category_name,es.code status_code,
                    es.name status_name,e.location_id,l.name location_name,e.department_id,
                    d.name department_name,emp.full_name responsible_name,e.purchase_date,
-                   e.commissioning_date,e.warranty_until,e.purchase_price,e.notes
+                   e.commissioning_date,e.warranty_until,e.purchase_price,e.notes,e.status_id
             FROM inventory.equipment e
             JOIN inventory.equipment_models em ON em.id=e.model_id
             JOIN inventory.manufacturers m ON m.id=em.manufacturer_id
@@ -87,7 +88,7 @@ class EquipmentCrudRepository {
                     r.getObject("department_id") as Long?,r.getString("department_name"),
                     r.getString("responsible_name"),r.getString("purchase_date"),
                     r.getString("commissioning_date"),r.getString("warranty_until"),
-                    r.getBigDecimal("purchase_price")?.toPlainString(),r.getString("notes"))
+                    r.getBigDecimal("purchase_price")?.toPlainString(),r.getString("notes"),r.getInt("status_id"))
             }
         }
     }
@@ -98,7 +99,7 @@ class EquipmentCrudRepository {
               location_id,department_id,purchase_date,commissioning_date,purchase_price,
               warranty_until,specifications,notes)
             VALUES(?,?, ?, ?, ?, ?, NULLIF(?, '')::date, NULLIF(?, '')::date,
-              NULLIF(?, '')::numeric, NULLIF(?, '')::date, ?::jsonb, ?) RETURNING id
+              NULLIF(?, '')::numeric, NULLIF(?, '')::date, COALESCE(?::jsonb, '{}'::jsonb), ?) RETURNING id
         """.trimIndent()).use { s ->
             s.setString(1,request.inventoryNumber); s.setString(2,request.serialNumber)
             s.setLong(3,request.modelId); s.setInt(4,request.statusId)
@@ -111,12 +112,12 @@ class EquipmentCrudRepository {
         }
     }
 
-    suspend fun update(id: Long, request: EquipmentUpsertRequest) = dbQuery { c ->
+    suspend fun update(id: Long, request: EquipmentUpsertRequest): Boolean = dbQuery { c ->
         c.prepareStatement("""
             UPDATE inventory.equipment SET inventory_number=?,serial_number=?,model_id=?,status_id=?,
               location_id=?,department_id=?,purchase_date=NULLIF(?, '')::date,
               commissioning_date=NULLIF(?, '')::date,purchase_price=NULLIF(?, '')::numeric,
-              warranty_until=NULLIF(?, '')::date,specifications=?::jsonb,notes=?,updated_at=NOW()
+              warranty_until=NULLIF(?, '')::date,specifications=COALESCE(?::jsonb, specifications),notes=?,updated_at=NOW()
             WHERE id=?
         """.trimIndent()).use { s ->
             s.setString(1,request.inventoryNumber);s.setString(2,request.serialNumber)
@@ -126,7 +127,7 @@ class EquipmentCrudRepository {
             s.setString(7,request.purchaseDate);s.setString(8,request.commissioningDate)
             s.setString(9,request.purchasePrice);s.setString(10,request.warrantyUntil)
             s.setString(11,request.specifications);s.setString(12,request.notes);s.setLong(13,id)
-            check(s.executeUpdate()==1){"Equipment not found: $id"}
+            s.executeUpdate() == 1
         }
     }
 

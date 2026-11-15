@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Package
@@ -47,6 +48,7 @@ fun EquipmentScreen(
     onStatus: (Long?) -> Unit,
     onCategory: (Long?) -> Unit,
     onLocation: (Long?) -> Unit,
+    onAdd: (() -> Unit)? = null,
     onItemClick: (Long) -> Unit
 ) {
     var searchFocused by remember { mutableStateOf(false) }
@@ -62,6 +64,7 @@ fun EquipmentScreen(
                     Text("Оборудование", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                     Text("Учет и состояние компьютерной техники", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                onAdd?.let { androidx.compose.material3.TextButton(onClick = it) { Text("Добавить") } }
                 IconButton(onClick = onRefresh, enabled = !state.isLoading) {
                     Icon(Lucide.RefreshCw, contentDescription = "Обновить")
                 }
@@ -83,18 +86,20 @@ fun EquipmentScreen(
                         Icon(Lucide.X, contentDescription = "Очистить")
                     }
                 },
-                label = { Text("Поиск по инвентарному номеру или модели") },
+                label = { Text("Поиск по номеру, модели или бренду", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                 singleLine = true
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ru.echosystems.omni.app.ui.OmniFilter("Категория", state.categoryId,
                     state.categories.map { it.id to it.name }, onCategory, Modifier.weight(1f))
                 ru.echosystems.omni.app.ui.OmniFilter("Расположение", state.locationId,
                     state.locations.map { it.id to it.name }, onLocation, Modifier.weight(1f))
             }
-            ru.echosystems.omni.app.ui.OmniFilter("Все статусы", state.statusIndex,
-                equipmentStatuses.mapIndexed { index, status -> index.toLong() to status.second }, onStatus)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ru.echosystems.omni.app.ui.OmniFilter("Все статусы", state.statusIndex,
+                    equipmentStatuses.mapIndexed { index, status -> index.toLong() to status.second }, onStatus)
+            }
             state.filterError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             state.errorMessage?.let { message ->
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {

@@ -41,8 +41,9 @@ class EquipmentRepository {
         val parameters = mutableListOf<Any>()
 
         search?.trim()?.takeIf { it.isNotEmpty() }?.let {
-            conditions += "(e.inventory_number ILIKE ? OR e.serial_number ILIKE ? OR em.name ILIKE ?)"
+            conditions += "(e.inventory_number ILIKE ? OR e.serial_number ILIKE ? OR em.name ILIKE ? OR m.name ILIKE ?)"
             val pattern = "%$it%"
+            parameters += pattern
             parameters += pattern
             parameters += pattern
             parameters += pattern
