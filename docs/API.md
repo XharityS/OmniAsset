@@ -35,7 +35,7 @@ POST /api/equipment — создание техники. Требует роль
 
 PUT /api/equipment/{id} — изменение техники. Требует роль admin. Без поля specifications или при значении null сохраняются текущие характеристики. При конфликте инвентарного или серийного номера API возвращает 409.
 
-POST /api/equipment/{id}/move — перемещение и смена ответственного. Тело: locationId, departmentId, employeeId, comment. Операция закрывает старое закрепление, создает новое и пишет событие в историю.
+POST /api/equipment/{id}/move — перемещение и смена ответственного. Тело: locationId, departmentId, employeeId, comment. Требует роль admin или operator. При смене ответственного операция закрывает старое закрепление и создаёт новое, если передан employeeId. Перемещение без смены сотрудника сохраняет текущее закрепление. Списанная техника возвращает 409.
 
 POST /api/equipment/{id}/status — смена статуса. Тело: statusCode, comment.
 

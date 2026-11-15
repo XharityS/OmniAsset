@@ -24,7 +24,8 @@ data class EquipmentDetails(
     val warrantyUntil: String?,
     val purchasePrice: String?,
     val notes: String?,
-    val statusId: Int
+    val statusId: Int,
+    val responsibleId: Long?
 )
 
 @Serializable
@@ -63,7 +64,7 @@ class EquipmentCrudRepository {
             SELECT e.id,e.inventory_number,e.serial_number,e.model_id,em.name model_name,
                    m.name manufacturer_name,ec.name category_name,es.code status_code,
                    es.name status_name,e.location_id,l.name location_name,e.department_id,
-                   d.name department_name,emp.full_name responsible_name,e.purchase_date,
+                   d.name department_name,emp.full_name responsible_name,a.employee_id responsible_id,e.purchase_date,
                    e.commissioning_date,e.warranty_until,e.purchase_price,e.notes,e.status_id
             FROM inventory.equipment e
             JOIN inventory.equipment_models em ON em.id=e.model_id
@@ -88,7 +89,7 @@ class EquipmentCrudRepository {
                     r.getObject("department_id") as Long?,r.getString("department_name"),
                     r.getString("responsible_name"),r.getString("purchase_date"),
                     r.getString("commissioning_date"),r.getString("warranty_until"),
-                    r.getBigDecimal("purchase_price")?.toPlainString(),r.getString("notes"),r.getInt("status_id"))
+                    r.getBigDecimal("purchase_price")?.toPlainString(),r.getString("notes"),r.getInt("status_id"),r.getObject("responsible_id") as Long?)
             }
         }
     }

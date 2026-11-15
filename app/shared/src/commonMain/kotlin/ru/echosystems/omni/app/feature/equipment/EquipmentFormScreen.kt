@@ -62,7 +62,7 @@ fun EquipmentFormScreen(
 }
 
 @Composable
-private fun EquipmentFields(state: EquipmentFormState, onChange: (EquipmentFormRequest) -> Unit) {
+internal fun EquipmentFields(state: EquipmentFormState, onChange: (EquipmentFormRequest) -> Unit) {
     val draft = state.draft
     val enabled = !state.saving
     EquipmentField("Инвентарный номер *", draft.inventoryNumber, enabled) {
@@ -101,7 +101,7 @@ private fun EquipmentFields(state: EquipmentFormState, onChange: (EquipmentFormR
 }
 
 @Composable
-private fun EquipmentChoice(
+internal fun EquipmentChoice(
     label: String,
     selectedId: Long?,
     options: List<ReferenceItem>,
@@ -124,7 +124,7 @@ private fun EquipmentChoice(
 }
 
 @Composable
-private fun EquipmentField(
+internal fun EquipmentField(
     label: String,
     value: String?,
     enabled: Boolean,

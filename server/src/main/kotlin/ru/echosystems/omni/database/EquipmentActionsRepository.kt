@@ -16,52 +16,76 @@ data class ChangeEquipmentStatusRequest(
     val comment: String? = null
 )
 
+enum class MoveResult { SAVED, NOT_FOUND, NOT_MOVABLE, EMPLOYEE_UNAVAILABLE }
+
 class EquipmentActionsRepository {
     suspend fun moveEquipment(
         equipmentId: Long,
         request: MoveEquipmentRequest
-    ) = dbQuery { connection ->
+    ): MoveResult = dbQuery { connection ->
         connection.prepareStatement(
             """
             SELECT e.location_id, e.department_id, es.code
             FROM inventory.equipment e
             JOIN inventory.equipment_statuses es ON es.id = e.status_id
             WHERE e.id = ?
-            FOR UPDATE
+            FOR UPDATE OF e
             """.trimIndent()
         ).use { statement ->
             statement.setLong(1, equipmentId)
             statement.executeQuery().use { result ->
-                check(result.next()) { "Equipment with id=$equipmentId was not found" }
-                check(result.getString("code") != "written_off") {
-                    "Written-off equipment cannot be assigned or moved"
+                if (!result.next()) return@dbQuery MoveResult.NOT_FOUND
+                if (result.getString("code") == "written_off") return@dbQuery MoveResult.NOT_MOVABLE
+
+                val oldEmployeeId = connection.prepareStatement(
+                    """
+                    SELECT employee_id FROM inventory.equipment_assignments
+                    WHERE equipment_id = ? AND returned_at IS NULL
+                    """.trimIndent()
+                ).use { assignment ->
+                    assignment.setLong(1, equipmentId)
+                    assignment.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else null }
+                }
+                if (request.employeeId != oldEmployeeId && request.employeeId != null) {
+                    val active = connection.prepareStatement(
+                        "SELECT id FROM inventory.employees WHERE id = ? AND is_active FOR SHARE"
+                    ).use { employee ->
+                        employee.setLong(1, request.employeeId)
+                        employee.executeQuery().use { it.next() }
+                    }
+                    if (!active) return@dbQuery MoveResult.EMPLOYEE_UNAVAILABLE
                 }
 
                 val oldLocationId = result.getObject("location_id") as Long?
                 val oldDepartmentId = result.getObject("department_id") as Long?
+                if (oldLocationId == request.locationId && oldDepartmentId == request.departmentId &&
+                    oldEmployeeId == request.employeeId
+                ) return@dbQuery MoveResult.SAVED
 
-                connection.prepareStatement(
-                    """
-                    UPDATE inventory.equipment_assignments
-                    SET returned_at = NOW(), return_comment = ?
-                    WHERE equipment_id = ? AND returned_at IS NULL
-                    """.trimIndent()
-                ).use { closeAssignment ->
-                    closeAssignment.setString(1, request.comment)
-                    closeAssignment.setLong(2, equipmentId)
-                    closeAssignment.executeUpdate()
-                }
-
-                request.employeeId?.let { employeeId ->
+                if (oldEmployeeId != request.employeeId) {
                     connection.prepareStatement(
                         """
-                        INSERT INTO inventory.equipment_assignments(equipment_id, employee_id, assigned_at)
-                        VALUES (?, ?, NOW())
+                        UPDATE inventory.equipment_assignments
+                        SET returned_at = NOW(), return_comment = ?
+                        WHERE equipment_id = ? AND returned_at IS NULL
                         """.trimIndent()
-                    ).use { assignment ->
-                        assignment.setLong(1, equipmentId)
-                        assignment.setLong(2, employeeId)
-                        assignment.executeUpdate()
+                    ).use { closeAssignment ->
+                        closeAssignment.setString(1, request.comment)
+                        closeAssignment.setLong(2, equipmentId)
+                        closeAssignment.executeUpdate()
+                    }
+
+                    request.employeeId?.let { employeeId ->
+                        connection.prepareStatement(
+                            """
+                            INSERT INTO inventory.equipment_assignments(equipment_id, employee_id, assigned_at)
+                            VALUES (?, ?, NOW())
+                            """.trimIndent()
+                        ).use { assignment ->
+                            assignment.setLong(1, equipmentId)
+                            assignment.setLong(2, employeeId)
+                            assignment.executeUpdate()
+                        }
                     }
                 }
 
@@ -106,6 +130,7 @@ class EquipmentActionsRepository {
                     movement.setString(6, request.comment)
                     movement.executeUpdate()
                 }
+                MoveResult.SAVED
             }
         }
     }

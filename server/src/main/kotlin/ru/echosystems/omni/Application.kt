@@ -30,6 +30,7 @@ import ru.echosystems.omni.database.DatabaseFactory
 import ru.echosystems.omni.database.EquipmentActionsRepository
 import ru.echosystems.omni.database.EquipmentRepository
 import ru.echosystems.omni.database.MoveEquipmentRequest
+import ru.echosystems.omni.database.MoveResult
 import ru.echosystems.omni.database.ReferenceRepository
 
 fun main() {
@@ -137,8 +138,17 @@ fun Application.module() {
                         "Invalid equipment id",
                         status = HttpStatusCode.BadRequest
                     )
-                actionsRepository.moveEquipment(equipmentId, call.receive<MoveEquipmentRequest>())
-                call.respondText("Equipment moved")
+                val role = call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString()
+                if (role != "admin" && role != "operator") return@post call.respond(HttpStatusCode.Forbidden)
+                val request = call.receive<MoveEquipmentRequest>()
+                val result = call.saveEquipment { actionsRepository.moveEquipment(equipmentId, request) }
+                    ?: return@post
+                when (result) {
+                    MoveResult.SAVED -> call.respondText("Equipment moved")
+                    MoveResult.NOT_FOUND -> call.respond(HttpStatusCode.NotFound)
+                    MoveResult.NOT_MOVABLE -> call.respond(HttpStatusCode.Conflict)
+                    MoveResult.EMPLOYEE_UNAVAILABLE -> call.respond(HttpStatusCode.BadRequest)
+                }
             }
 
             post("/api/equipment/{id}/status") {

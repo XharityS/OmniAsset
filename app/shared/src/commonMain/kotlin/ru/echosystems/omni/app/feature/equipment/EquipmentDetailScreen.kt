@@ -38,7 +38,8 @@ fun EquipmentDetailScreen(
     onLoad: (Long) -> Unit,
     onBack: () -> Unit,
     onChangeStatus: (String) -> Unit,
-    onEdit: (() -> Unit)? = null
+    onEdit: (() -> Unit)? = null,
+    onMove: (() -> Unit)? = null
 ) {
     LaunchedEffect(equipmentId) { onLoad(equipmentId) }
     OmniBackground {
@@ -77,6 +78,12 @@ fun EquipmentDetailScreen(
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             onEdit?.let { androidx.compose.material3.TextButton(onClick = it, enabled = !state.isActionLoading && state.item?.id == equipmentId) { Text("Редактировать") } }
+                            if (onMove != null && item.statusCode != "written_off") {
+                                androidx.compose.material3.TextButton(
+                                    onClick = onMove,
+                                    enabled = !state.isLoading && !state.isActionLoading
+                                ) { Text("Переместить или сменить ответственного") }
+                            }
                             Text("Быстрые действия", style = MaterialTheme.typography.titleMedium)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { onChangeStatus("available") }, enabled = !state.isActionLoading) { Text("Доступно") }

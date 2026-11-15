@@ -23,7 +23,8 @@ data class EquipmentDetails(
     val warrantyUntil: String? = null,
     val purchasePrice: String? = null,
     val notes: String? = null,
-    val statusId: Long? = null
+    val statusId: Long? = null,
+    val responsibleId: Long? = null
 )
 
 @Serializable

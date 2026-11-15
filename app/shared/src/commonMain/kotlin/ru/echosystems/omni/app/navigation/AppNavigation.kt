@@ -5,6 +5,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,6 +19,8 @@ import ru.echosystems.omni.app.feature.auth.AuthViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentFormScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentFormViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentRepository
+import ru.echosystems.omni.app.feature.equipment.EquipmentMoveScreen
+import ru.echosystems.omni.app.feature.equipment.EquipmentMoveViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentDetailScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentDetailViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentScreen
@@ -39,7 +42,9 @@ fun AppNavigation() {
     val equipmentState by equipmentViewModel.state.collectAsState()
     var selectedEquipmentId by remember { mutableStateOf<Long?>(null) }
     var showForm by remember { mutableStateOf(false) }
+    var showMove by remember { mutableStateOf(false) }
     val canEdit = state.user?.role == "admin"
+    val canMove = canEdit || state.user?.role == "operator"
     val equipmentId = selectedEquipmentId
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -47,6 +52,21 @@ fun AppNavigation() {
             state.user == null -> AuthScreen(
                 state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login
             )
+            showMove && canMove && equipmentId != null -> {
+                val scope = rememberCoroutineScope()
+                val move = remember(repository, equipmentId) {
+                    EquipmentMoveViewModel(repository, equipmentId, scope)
+                }
+                LaunchedEffect(move) { move.load() }
+                val moveState by move.state.collectAsState()
+                EquipmentMoveScreen(
+                    state = moveState,
+                    onChange = move::change,
+                    onRetry = move::load,
+                    onSave = { move.save { showMove = false } },
+                    onBack = { showMove = false }
+                )
+            }
             showForm && canEdit -> {
                 val scope = rememberCoroutineScope()
                 val form = remember(repository, equipmentId) {
@@ -88,7 +108,8 @@ fun AppNavigation() {
                     onLoad = detail::load,
                     onBack = { selectedEquipmentId = null },
                     onChangeStatus = { detail.changeStatus(it) },
-                    onEdit = if (canEdit) ({ showForm = true }) else null
+                    onEdit = if (canEdit) ({ showForm = true }) else null,
+                    onMove = if (canMove) ({ showMove = true }) else null
                 )
             }
         }

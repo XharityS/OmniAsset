@@ -29,7 +29,7 @@ class EquipmentRepository(private val apiClient: ApiClient) {
     }
 
     suspend fun references(type: String): List<ReferenceItem> {
-        require(type in setOf("categories", "locations", "models", "statuses", "departments"))
+        require(type in setOf("categories", "locations", "models", "statuses", "departments", "employees"))
         val response = apiClient.httpClient.get("/api/references/$type")
         if (response.status.value !in 200..299) throw ApiException(
             response.status.value, "Не удалось загрузить справочник", ""
@@ -51,6 +51,24 @@ class EquipmentRepository(private val apiClient: ApiClient) {
             throw ApiException(response.status.value, "Не удалось загрузить историю", response.bodyAsText())
         }
         return response.body()
+    }
+
+    suspend fun move(id: Long, request: EquipmentMoveRequest) {
+        val response = apiClient.httpClient.post("/api/equipment/$id/move") {
+            contentType(ContentType.Application.Json)
+            setBody(request)
+        }
+        if (response.status.value !in 200..299) {
+            val message = when (response.status.value) {
+                400 -> "Проверьте расположение, подразделение и ответственного"
+                401 -> "Сессия истекла. Войдите снова."
+                403 -> "Недостаточно прав для перемещения"
+                404 -> "Запись оборудования не найдена"
+                409 -> "Оборудование списано или его состояние изменилось"
+                else -> "Не удалось сохранить перемещение"
+            }
+            throw ApiException(response.status.value, message, "")
+        }
     }
 
     suspend fun changeStatus(id: Long, statusCode: String, comment: String? = null) {
