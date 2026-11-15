@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
@@ -44,6 +43,7 @@ fun EquipmentScreen(
     state: EquipmentUiState,
     onSearchChanged: (String) -> Unit,
     onRefresh: () -> Unit,
+    onLoadMore: () -> Unit,
     onItemClick: (Long) -> Unit
 ) {
     var searchFocused by remember { mutableStateOf(false) }
@@ -65,7 +65,7 @@ fun EquipmentScreen(
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SummaryCard("Всего", state.items.size.toString(), Modifier.weight(1f))
+                SummaryCard("Загружено", state.items.size.toString(), Modifier.weight(1f))
                 SummaryCard("Выдано", state.items.count { it.statusCode == "assigned" }.toString(), Modifier.weight(1f))
                 SummaryCard("Доступно", state.items.count { it.statusCode == "available" }.toString(), Modifier.weight(1f))
             }
@@ -97,6 +97,11 @@ fun EquipmentScreen(
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(state.items, key = { it.id }) { EquipmentCard(it, onItemClick) }
+                    if (state.hasMore) item {
+                        androidx.compose.material3.TextButton(onClick = onLoadMore, enabled = !state.isLoadingMore) {
+                            Text(if (state.isLoadingMore) "Загрузка…" else "Загрузить ещё")
+                        }
+                    }
                 }
             }
         }

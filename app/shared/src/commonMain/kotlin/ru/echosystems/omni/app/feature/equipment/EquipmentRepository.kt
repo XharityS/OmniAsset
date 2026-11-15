@@ -11,11 +11,11 @@ import ru.echosystems.omni.app.core.network.ApiClient
 import ru.echosystems.omni.app.core.network.ApiException
 
 class EquipmentRepository(private val apiClient: ApiClient) {
-    suspend fun loadPage(search: String = ""): EquipmentPage {
+    suspend fun loadPage(search: String = "", offset: Long = 0): EquipmentPage {
         val response = apiClient.httpClient.get("/api/equipment") {
             parameter("search", search.takeIf { it.isNotBlank() })
             parameter("limit", 50)
-            parameter("offset", 0)
+            parameter("offset", offset)
         }
         if (response.status.value !in 200..299) {
             throw ApiException(response.status.value, "Не удалось загрузить список техники", response.body())
