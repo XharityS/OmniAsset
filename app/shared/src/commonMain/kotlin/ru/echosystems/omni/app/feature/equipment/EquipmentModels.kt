@@ -24,3 +24,11 @@ data class EquipmentPage(
     val offset: Long,
     val hasMore: Boolean
 )
+
+@Serializable
+data class ReferenceItem(val id: Long, val name: String)
+
+val equipmentStatuses = listOf(
+    "available" to "Доступно", "assigned" to "Выдано", "repair" to "На ремонте",
+    "reserved" to "Зарезервировано", "written_off" to "Списано", "lost" to "Утеряно"
+)

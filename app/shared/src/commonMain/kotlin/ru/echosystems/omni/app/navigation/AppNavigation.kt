@@ -40,7 +40,7 @@ fun AppNavigation() {
     Surface(modifier = Modifier.fillMaxSize()) {
         if (state.user == null) AuthScreen(state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login)
         else if (selectedEquipmentId == null) {
-            EquipmentScreen(equipmentState, equipmentViewModel::onSearchChanged, equipmentViewModel::load, equipmentViewModel::loadMore) { selectedEquipmentId = it }
+            EquipmentScreen(equipmentState, equipmentViewModel::onSearchChanged, equipmentViewModel::load, equipmentViewModel::loadMore, equipmentViewModel::selectStatus, equipmentViewModel::selectCategory, equipmentViewModel::selectLocation) { selectedEquipmentId = it }
         } else {
             EquipmentDetailScreen(
                 equipmentId = selectedEquipmentId!!,

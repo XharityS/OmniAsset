@@ -6,6 +6,12 @@ import ru.echosystems.omni.app.core.network.ApiException
 
 data class EquipmentUiState(
     val search: String = "",
+    val categoryId: Long? = null,
+    val statusIndex: Long? = null,
+    val locationId: Long? = null,
+    val categories: List<ReferenceItem> = emptyList(),
+    val locations: List<ReferenceItem> = emptyList(),
+    val filterError: String? = null,
     val items: List<EquipmentRow> = emptyList(),
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
@@ -28,7 +34,41 @@ class EquipmentViewModel(
         request(reset = true, debounce = true)
     }
 
-    fun load() = request(reset = true)
+    fun load() {
+        request(reset = true)
+        if (_state.value.categories.isEmpty() || _state.value.locations.isEmpty()) loadFilters()
+    }
+
+    private var filterJob: Job? = null
+
+    fun loadFilters() {
+        if (filterJob?.isActive == true) return
+        filterJob = scope.launch {
+            try {
+                val categories = repository.references("categories")
+                val locations = repository.references("locations")
+                _state.update { it.copy(categories = categories, locations = locations, filterError = null) }
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (error: Exception) {
+                _state.update { it.copy(filterError = "Не удалось загрузить фильтры. Нажмите обновление.") }
+            }
+        }
+    }
+
+    fun selectStatus(id: Long?) {
+        _state.update { it.copy(statusIndex = id) }
+        request(reset = true)
+    }
+
+    fun selectCategory(id: Long?) {
+        _state.update { it.copy(categoryId = id) }
+        request(reset = true)
+    }
+
+    fun selectLocation(id: Long?) {
+        _state.update { it.copy(locationId = id) }
+        request(reset = true)
+    }
     fun loadMore() {
         if (_state.value.hasMore && !_state.value.isLoading && !_state.value.isLoadingMore) request(reset = false)
     }
@@ -36,13 +76,14 @@ class EquipmentViewModel(
     private fun request(reset: Boolean, debounce: Boolean = false) {
         job?.cancel()
         val requestGeneration = ++generation
-        val query = _state.value.search
+        val filters = _state.value
+        val query = filters.search
         val offset = if (reset) 0L else nextOffset
         _state.update { it.copy(isLoading = reset, isLoadingMore = !reset, errorMessage = null) }
         job = scope.launch {
             try {
                 if (debounce) delay(350)
-                val page = repository.loadPage(query, offset)
+                val page = repository.loadPage(query, offset, filters.categoryId, filters.locationId, filters.statusIndex?.let { equipmentStatuses.getOrNull(it.toInt())?.first })
                 if (requestGeneration != generation) return@launch
                 nextOffset = page.offset + page.items.size
                 _state.update { it.copy(

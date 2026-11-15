@@ -44,6 +44,9 @@ fun EquipmentScreen(
     onSearchChanged: (String) -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
+    onStatus: (Long?) -> Unit,
+    onCategory: (Long?) -> Unit,
+    onLocation: (Long?) -> Unit,
     onItemClick: (Long) -> Unit
 ) {
     var searchFocused by remember { mutableStateOf(false) }
@@ -84,6 +87,15 @@ fun EquipmentScreen(
                 singleLine = true
             )
 
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ru.echosystems.omni.app.ui.OmniFilter("Категория", state.categoryId,
+                    state.categories.map { it.id to it.name }, onCategory, Modifier.weight(1f))
+                ru.echosystems.omni.app.ui.OmniFilter("Расположение", state.locationId,
+                    state.locations.map { it.id to it.name }, onLocation, Modifier.weight(1f))
+            }
+            ru.echosystems.omni.app.ui.OmniFilter("Все статусы", state.statusIndex,
+                equipmentStatuses.mapIndexed { index, status -> index.toLong() to status.second }, onStatus)
+            state.filterError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             state.errorMessage?.let { message ->
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                     Text(message, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(14.dp))
