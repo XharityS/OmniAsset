@@ -49,12 +49,16 @@ class EquipmentMoveViewModel(
         scope.launch {
             try {
                 mutableState.value = coroutineScope {
-                    val details = async { repository.loadDetails(equipmentId) }
-                    val locations = async { repository.references("locations") }
-                    val departments = async { repository.references("departments") }
-                    val employees = async { repository.references("employees") }
+                    val details = async { loadPart("карточку оборудования") { repository.loadDetails(equipmentId) } }
+                    val locations = async { loadPart("справочник расположений") { repository.references("locations") } }
+                    val departments = async { loadPart("справочник подразделений") { repository.references("departments") } }
+                    val employees = async { loadPart("справочник сотрудников") { repository.references("employees") } }
                     val item = details.await()
-                    check(item.responsibleName == null || item.responsibleId != null)
+                    if (item.responsibleName != null && item.responsibleId == null) {
+                        throw MoveLoadException(
+                            "Сервер не передал ID текущего ответственного. Обновите API, чтобы сохранить закрепление."
+                        )
+                    }
                     val activeEmployees = employees.await()
                     val currentEmployee = item.responsibleId?.let { id ->
                         ReferenceItem(id, item.responsibleName ?: "Текущий ответственный")
@@ -73,9 +77,26 @@ class EquipmentMoveViewModel(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                mutableState.value = EquipmentMoveState(loading = false, error = "Не удалось загрузить данные перемещения")
+                mutableState.value = EquipmentMoveState(
+                    loading = false,
+                    error = (error as? MoveLoadException)?.message ?: "Не удалось загрузить данные перемещения"
+                )
             }
         }
+    }
+
+    private suspend fun <T> loadPart(label: String, fetch: suspend () -> T): T = try {
+        fetch()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: ApiException) {
+        val message = when (error.statusCode) {
+            401 -> "Сессия истекла. Войдите снова."
+            else -> "Не удалось загрузить $label (HTTP ${error.statusCode})."
+        }
+        throw MoveLoadException(message, error)
+    } catch (error: Exception) {
+        throw MoveLoadException("Не удалось загрузить $label. Проверьте подключение и ответ API.", error)
     }
 
     fun change(draft: EquipmentMoveRequest) {
@@ -103,3 +124,5 @@ class EquipmentMoveViewModel(
         }
     }
 }
+
+private class MoveLoadException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

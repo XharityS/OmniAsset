@@ -40,13 +40,15 @@ class EquipmentRepository {
         val conditions = mutableListOf<String>()
         val parameters = mutableListOf<Any>()
 
-        search?.trim()?.takeIf { it.isNotEmpty() }?.let {
-            conditions += "(e.inventory_number ILIKE ? OR e.serial_number ILIKE ? OR em.name ILIKE ? OR m.name ILIKE ?)"
-            val pattern = "%$it%"
-            parameters += pattern
-            parameters += pattern
-            parameters += pattern
-            parameters += pattern
+        search?.trim()?.takeIf { it.isNotEmpty() }?.let { query ->
+            conditions += """
+                (e.inventory_number ILIKE ? ESCAPE '!' OR e.serial_number ILIKE ? ESCAPE '!'
+                 OR em.name ILIKE ? ESCAPE '!' OR m.name ILIKE ? ESCAPE '!'
+                 OR (m.name || ' ' || em.name) ILIKE ? ESCAPE '!')
+            """.trimIndent()
+            val literal = query.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+            val pattern = "%$literal%"
+            repeat(5) { parameters.add(pattern) }
         }
 
         statusCode?.trim()?.takeIf { it.isNotEmpty() }?.let {
