@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +17,7 @@ import ru.echosystems.omni.app.core.network.defaultApiBaseUrl
 import ru.echosystems.omni.app.feature.auth.AuthRepository
 import ru.echosystems.omni.app.feature.auth.AuthScreen
 import ru.echosystems.omni.app.feature.auth.AuthViewModel
+import ru.echosystems.omni.app.feature.directory.DirectoryType
 import ru.echosystems.omni.app.feature.directory.DirectoryRepository
 import ru.echosystems.omni.app.feature.directory.DirectoryScreen
 import ru.echosystems.omni.app.feature.directory.DirectoryViewModel
@@ -33,6 +35,9 @@ import ru.echosystems.omni.app.feature.reports.ReportFilters
 import ru.echosystems.omni.app.feature.reports.ReportsRepository
 import ru.echosystems.omni.app.feature.reports.ReportsScreen
 import ru.echosystems.omni.app.feature.reports.ReportsViewModel
+import ru.echosystems.omni.app.feature.users.UsersRepository
+import ru.echosystems.omni.app.feature.users.UsersScreen
+import ru.echosystems.omni.app.feature.users.UsersViewModel
 
 @Composable
 fun AppNavigation() {
@@ -46,12 +51,17 @@ fun AppNavigation() {
     }
     val state by viewModel.state.collectAsState()
     val repository = remember(apiClient) { EquipmentRepository(apiClient) }
-    val equipmentViewModel = remember(repository) { EquipmentViewModel(repository) }
+    val equipmentViewModel = remember(repository, state.user?.userId) { EquipmentViewModel(repository) }
+    DisposableEffect(equipmentViewModel) {
+        onDispose { equipmentViewModel.close() }
+    }
     val equipmentState by equipmentViewModel.state.collectAsState()
     var selectedEquipmentId by remember { mutableStateOf<Long?>(null) }
     var reportFilters by remember { mutableStateOf<ReportFilters?>(null) }
     val filters = reportFilters
     var showDirectory by remember { mutableStateOf(false) }
+    var initialDirectory by remember { mutableStateOf<DirectoryType?>(null) }
+    var showUsers by remember { mutableStateOf(false) }
     var showForm by remember { mutableStateOf(false) }
     var showMove by remember { mutableStateOf(false) }
     val canEdit = state.user?.role == "admin"
@@ -63,6 +73,17 @@ fun AppNavigation() {
             state.user == null -> AuthScreen(
                 state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login
             )
+            showUsers && canEdit -> {
+                val scope = rememberCoroutineScope()
+                val users = remember(apiClient, scope) { UsersViewModel(UsersRepository(apiClient), scope) }
+                LaunchedEffect(users) { users.load() }
+                val usersState by users.state.collectAsState()
+                UsersScreen(
+                    usersState, requireNotNull(state.user).userId, users::edit,
+                    users::change, users::save, users::load,
+                    onBack = { showUsers = false }
+                )
+            }
             filters != null -> {
                 val scope = rememberCoroutineScope()
                 val reports = remember(apiClient, filters) { ReportsViewModel(ReportsRepository(apiClient), scope, filters) }
@@ -81,12 +102,14 @@ fun AppNavigation() {
                 val directory = remember(apiClient, scope) {
                     DirectoryViewModel(DirectoryRepository(apiClient), scope)
                 }
+                LaunchedEffect(directory) { initialDirectory?.let(directory::open) }
                 val directoryState by directory.state.collectAsState()
                 DirectoryScreen(
                     directoryState, directory::open, directory::select, directory::save,
                     onBack = {
                         if (directoryState.type == null) {
                             showDirectory = false
+                            initialDirectory = null
                             equipmentViewModel.loadFilters()
                         } else directory.back()
                     }
@@ -137,6 +160,9 @@ fun AppNavigation() {
                 onLocation = equipmentViewModel::selectLocation,
                 onAdd = if (canEdit) ({ showForm = true }) else null,
                 onDirectory = if (canEdit) ({ showDirectory = true }) else null,
+                onEmployees = if (canEdit) ({ initialDirectory = DirectoryType.EMPLOYEES; showDirectory = true }) else null,
+                onPlaces = if (canEdit) ({ initialDirectory = DirectoryType.LOCATIONS; showDirectory = true }) else null,
+                onUsers = if (canEdit) ({ showUsers = true }) else null,
                 onReports = {
                     val status = equipmentState.statusIndex?.let { equipmentStatuses.getOrNull(it.toInt()) }
                     reportFilters = ReportFilters(
@@ -156,6 +182,10 @@ fun AppNavigation() {
                         }
                     )
                 },
+                onLogout = {
+                    token = null
+                    viewModel.logout()
+                },
                 onItemClick = { selectedEquipmentId = it }
             )
             else -> {
@@ -167,7 +197,7 @@ fun AppNavigation() {
                     state = detailState,
                     onLoad = detail::load,
                     onBack = { selectedEquipmentId = null },
-                    onChangeStatus = { detail.changeStatus(it) },
+                    onChangeStatus = if (canMove) ({ code -> detail.changeStatus(code) }) else null,
                     onEdit = if (canEdit) ({ showForm = true }) else null,
                     onMove = if (canMove) ({ showMove = true }) else null
                 )

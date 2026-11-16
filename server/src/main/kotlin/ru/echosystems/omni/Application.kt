@@ -24,6 +24,9 @@ import ru.echosystems.omni.database.AdminReferenceType
 import ru.echosystems.omni.database.AdminRepository
 import ru.echosystems.omni.database.ReferenceUpsertRequest
 import ru.echosystems.omni.database.UserCreateRequest
+import ru.echosystems.omni.database.UserUpdateRequest
+import ru.echosystems.omni.database.UserChangeResult
+import java.util.UUID
 import ru.echosystems.omni.database.DirectoryAdminRepository
 import ru.echosystems.omni.database.EmployeeUpsertRequest
 import ru.echosystems.omni.database.EquipmentCrudRepository
@@ -61,14 +64,15 @@ fun Application.module() {
             ?.getString()?.toLongOrNull() ?: 3_600_000
     )
 
+    val authRepository = AuthRepository()
     install(Authentication) {
         jwt("auth-jwt") {
             realm = "omniasset"
             verifier(jwtService.verifier)
             validate { credential ->
-                if (credential.payload.subject != null &&
-                    credential.payload.getClaim("role").asString() != null
-                ) {
+                val id = credential.payload.subject.toUserId()
+                val role = credential.payload.getClaim("role").asString()
+                if (id != null && role != null && authRepository.hasActiveRole(id, role)) {
                     JWTPrincipal(credential.payload)
                 } else {
                     null
@@ -78,7 +82,6 @@ fun Application.module() {
     }
 
     DatabaseFactory.init(environment.config)
-    val authRepository = AuthRepository()
     val equipmentRepository = EquipmentRepository()
     val equipmentCrudRepository = EquipmentCrudRepository()
     val referenceRepository = ReferenceRepository()
@@ -154,6 +157,8 @@ fun Application.module() {
             }
 
             post("/api/equipment/{id}/status") {
+                val role = call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString()
+                if (role != "admin" && role != "operator") return@post call.respond(HttpStatusCode.Forbidden)
                 val equipmentId = call.parameters["id"]?.toLongOrNull()
                     ?: return@post call.respondText(
                         "Invalid equipment id",
@@ -292,17 +297,32 @@ fun Application.module() {
             post("/api/admin/users") {
                 if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
                     return@post call.respond(HttpStatusCode.Forbidden)
-                val id = adminRepository.createUser(call.receive<UserCreateRequest>())
+                val request = call.receive<UserCreateRequest>()
+                if (request.username.isBlank() || request.username.length > 50 ||
+                    request.password.length < 8 || request.password.encodeToByteArray().size > 72 ||
+                    !validUserProfile(request.fullName, request.email, request.role)
+                ) return@post call.respond(HttpStatusCode.BadRequest)
+                val id = call.saveEquipment { adminRepository.createUser(request.copy(
+                    username = request.username.trim(), fullName = request.fullName.trim(),
+                    email = request.email?.trim()?.takeIf { it.isNotEmpty() }
+                )) } ?: return@post
                 call.respond(HttpStatusCode.Created, mapOf("id" to id.toString()))
             }
 
+            put("/api/admin/users/{id}") {
+                val actor = call.adminUserId() ?: return@put call.respond(HttpStatusCode.Forbidden)
+                val id = call.parameters["id"].toUserId() ?: return@put call.respond(HttpStatusCode.BadRequest)
+                val request = call.receive<UserUpdateRequest>()
+                if (!validUserProfile(request.fullName, request.email, request.role))
+                    return@put call.respond(HttpStatusCode.BadRequest)
+                val result = call.saveEquipment { adminRepository.updateUser(actor, id, request) } ?: return@put
+                call.respondUserChange(result)
+            }
+
             post("/api/admin/users/{id}/block") {
-                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
-                    return@post call.respond(HttpStatusCode.Forbidden)
-                val id = runCatching { java.util.UUID.fromString(call.parameters["id"]) }
-                    .getOrNull() ?: return@post call.respond(HttpStatusCode.BadRequest)
-                adminRepository.blockUser(id)
-                call.respondText("User blocked")
+                val actor = call.adminUserId() ?: return@post call.respond(HttpStatusCode.Forbidden)
+                val id = call.parameters["id"].toUserId() ?: return@post call.respond(HttpStatusCode.BadRequest)
+                call.respondUserChange(adminRepository.blockUser(actor, id))
             }
 
             get("/api/admin/users") {
@@ -392,4 +412,21 @@ private fun csvCell(value: Any?): String {
     return if (safeText.any { it == ';' || it == '"' || it == '\r' || it == '\n' }) {
         "\"" + safeText.replace("\"", "\"\"") + "\""
     } else safeText
+}
+
+private fun String?.toUserId(): UUID? = this?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+
+private fun ApplicationCall.adminUserId(): UUID? = principal<JWTPrincipal>()?.payload
+    ?.takeIf { it.getClaim("role").asString() == "admin" }?.subject.toUserId()
+
+private fun validUserProfile(fullName: String, email: String?, role: String): Boolean =
+    fullName.isNotBlank() && fullName.length <= 150 && (email?.length ?: 0) <= 150 &&
+        role in setOf("admin", "operator", "viewer")
+
+private suspend fun ApplicationCall.respondUserChange(result: UserChangeResult) {
+    respond(when (result) {
+        UserChangeResult.UPDATED -> HttpStatusCode.NoContent
+        UserChangeResult.FORBIDDEN -> HttpStatusCode.Forbidden
+        UserChangeResult.NOT_FOUND -> HttpStatusCode.NotFound
+    })
 }

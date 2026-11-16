@@ -130,11 +130,46 @@ class AdminRepository {
         }
     }
 
-    suspend fun blockUser(id: UUID) = dbQuery { c ->
-        c.prepareStatement("UPDATE inventory.app_users SET is_active=FALSE WHERE id=?").use { s ->
-            s.setObject(1, id)
-            check(s.executeUpdate() == 1) { "User not found" }
+    suspend fun updateUser(actor: UUID, id: UUID, request: UserUpdateRequest): UserChangeResult =
+        changeUser(actor, id, request, request.isActive)
+
+    suspend fun blockUser(actor: UUID, id: UUID): UserChangeResult = changeUser(actor, id, null, false)
+
+    private suspend fun changeUser(
+        actor: UUID, id: UUID, request: UserUpdateRequest?, active: Boolean
+    ): UserChangeResult = dbQuery { connection ->
+        // Serialize administrator changes so two admins cannot disable each other concurrently.
+        connection.createStatement().use { it.execute("LOCK TABLE inventory.app_users IN SHARE ROW EXCLUSIVE MODE") }
+        val canManage = connection.prepareStatement(
+            "SELECT 1 FROM inventory.app_users WHERE id = ? AND role = 'admin' AND is_active"
+        ).use { statement ->
+            statement.setObject(1, actor)
+            statement.executeQuery().use { it.next() }
+        }
+        if (!canManage) return@dbQuery UserChangeResult.FORBIDDEN
+        if (actor == id && (!active || request?.role != "admin")) return@dbQuery UserChangeResult.FORBIDDEN
+
+        val sql = if (request == null) {
+            "UPDATE inventory.app_users SET is_active = ? WHERE id = ?"
+        } else {
+            "UPDATE inventory.app_users SET is_active = ?, full_name = ?, email = ?, role = ? WHERE id = ?"
+        }
+        connection.prepareStatement(sql).use { statement ->
+            statement.setBoolean(1, active)
+            if (request == null) {
+                statement.setObject(2, id)
+            } else {
+                statement.setString(2, request.fullName.trim())
+                statement.setString(3, request.email?.trim()?.takeIf { it.isNotEmpty() })
+                statement.setString(4, request.role)
+                statement.setObject(5, id)
+            }
+            if (statement.executeUpdate() == 1) UserChangeResult.UPDATED else UserChangeResult.NOT_FOUND
         }
     }
-
 }
+
+@Serializable
+data class UserUpdateRequest(val fullName: String, val email: String? = null, val role: String, val isActive: Boolean)
+
+enum class UserChangeResult { UPDATED, FORBIDDEN, NOT_FOUND }

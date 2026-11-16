@@ -31,6 +31,16 @@ data class AuthUser(
 )
 
 class AuthRepository {
+    suspend fun hasActiveRole(id: UUID, role: String): Boolean = dbQuery { connection ->
+        connection.prepareStatement(
+            "SELECT 1 FROM inventory.app_users WHERE id = ? AND role = ? AND is_active"
+        ).use { statement ->
+            statement.setObject(1, id)
+            statement.setString(2, role)
+            statement.executeQuery().use { it.next() }
+        }
+    }
+
     suspend fun authenticate(username: String, password: String): AuthUser? =
         dbQuery { connection ->
             connection.prepareStatement(

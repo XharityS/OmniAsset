@@ -1,19 +1,28 @@
 package ru.echosystems.omni.app.feature.equipment
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,12 +41,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Menu
+import com.composables.icons.lucide.MapPin
+import com.composables.icons.lucide.ChartNoAxesCombined
 import com.composables.icons.lucide.Package
+import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.RefreshCw
 import com.composables.icons.lucide.Search
+import com.composables.icons.lucide.User
 import com.composables.icons.lucide.X
-import ru.echosystems.omni.app.ui.OmniBackground
+import androidx.compose.ui.graphics.vector.ImageVector
+import ru.echosystems.omni.app.ui.OmniFilter
 import ru.echosystems.omni.app.ui.OmniStatusChip
+
+private data class Section(val name: String, val icon: ImageVector? = null, val open: (() -> Unit)? = null)
 
 @Composable
 fun EquipmentScreen(
@@ -50,79 +67,69 @@ fun EquipmentScreen(
     onLocation: (Long?) -> Unit,
     onAdd: (() -> Unit)? = null,
     onDirectory: (() -> Unit)? = null,
+    onEmployees: (() -> Unit)? = null,
+    onPlaces: (() -> Unit)? = null,
+    onUsers: (() -> Unit)? = null,
     onReports: () -> Unit,
+    onLogout: () -> Unit,
     onItemClick: (Long) -> Unit
 ) {
-    var searchFocused by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { onRefresh() }
-
-    OmniBackground {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Оборудование", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Учет и состояние компьютерной техники", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                onAdd?.let { androidx.compose.material3.TextButton(onClick = it) { Text("Добавить") } }
-                IconButton(onClick = onRefresh, enabled = !state.isLoading) {
-                    Icon(Lucide.RefreshCw, contentDescription = "Обновить")
-                }
-            }
-
-            Row {
-                onDirectory?.let { androidx.compose.material3.TextButton(onClick = it) { Text("Справочники") } }
-                androidx.compose.material3.TextButton(onClick = onReports) { Text("Отчёты") }
-            }
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SummaryCard("Загружено", state.items.size.toString(), Modifier.weight(1f))
-                SummaryCard("Выдано", state.items.count { it.statusCode == "assigned" }.toString(), Modifier.weight(1f))
-                SummaryCard("Доступно", state.items.count { it.statusCode == "available" }.toString(), Modifier.weight(1f))
-            }
-
-            OutlinedTextField(
-                value = state.search,
-                onValueChange = { onSearchChanged(it); searchFocused = it.isNotEmpty() },
-                modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Lucide.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchFocused) IconButton(onClick = { onSearchChanged(""); searchFocused = false; onRefresh() }) {
-                        Icon(Lucide.X, contentDescription = "Очистить")
+    val sections = buildList {
+        add(Section("Техника", Lucide.Package))
+        onEmployees?.let { add(Section("Сотрудники", Lucide.User, it)) }
+        onPlaces?.let { add(Section("Места", Lucide.MapPin, it)) }
+        onDirectory?.let { add(Section("Справочники", Lucide.Package, it)) }
+        add(Section("Отчёты", Lucide.ChartNoAxesCombined, onReports))
+        onUsers?.let { add(Section("Пользователи", Lucide.User, it)) }
+        add(Section("Выйти", open = onLogout))
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val wide = maxWidth >= 900.dp
+        Row(Modifier.fillMaxSize()) {
+            if (wide) Sidebar(sections)
+            Column(Modifier.weight(1f)) {
+                EquipmentTopBar(sections, wide, state.isLoading, onRefresh)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = if (wide) 24.dp else 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (wide) 0.dp else 8.dp)
+                ) {
+                    item {
+                        Column(Modifier.padding(top = 20.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Техника", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                EquipmentSearch(state.search, onSearchChanged, Modifier.weight(1f))
+                                if (wide && onAdd != null) AddEquipmentButton(onAdd)
+                            }
+                            if (!wide && onAdd != null) AddEquipmentButton(onAdd)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OmniFilter("Категория", state.categoryId, state.categories.map { it.id to it.name }, onCategory, Modifier.weight(1f))
+                                OmniFilter("Место", state.locationId, state.locations.map { it.id to it.name }, onLocation, Modifier.weight(1f))
+                                OmniFilter("Статус", state.statusIndex, equipmentStatuses.mapIndexed { index, status -> index.toLong() to status.second }, onStatus, Modifier.weight(1f))
+                            }
+                            state.filterError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            state.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        }
                     }
-                },
-                label = { Text("Поиск по номеру, модели или бренду", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                singleLine = true
-            )
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ru.echosystems.omni.app.ui.OmniFilter("Категория", state.categoryId,
-                    state.categories.map { it.id to it.name }, onCategory, Modifier.weight(1f))
-                ru.echosystems.omni.app.ui.OmniFilter("Расположение", state.locationId,
-                    state.locations.map { it.id to it.name }, onLocation, Modifier.weight(1f))
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ru.echosystems.omni.app.ui.OmniFilter("Все статусы", state.statusIndex,
-                    equipmentStatuses.mapIndexed { index, status -> index.toLong() to status.second }, onStatus)
-            }
-            state.filterError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            state.errorMessage?.let { message ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                    Text(message, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(14.dp))
-                }
-            }
-
-            if (state.isLoading) {
-                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            } else if (state.items.isEmpty()) {
-                EmptyEquipmentState(Modifier.fillMaxWidth().weight(1f))
-            } else {
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(state.items, key = { it.id }) { EquipmentCard(it, onItemClick) }
-                    if (state.hasMore) item {
-                        androidx.compose.material3.TextButton(onClick = onLoadMore, enabled = !state.isLoadingMore) {
+                    when {
+                        state.isLoading -> item {
+                            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                        state.items.isEmpty() && state.errorMessage == null -> item {
+                            Text("Оборудование не найдено", Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        else -> {
+                            if (wide && state.items.isNotEmpty()) item { EquipmentTableHeader() }
+                            items(state.items, key = { it.id }) { equipment ->
+                                if (wide) EquipmentTableRow(equipment) { onItemClick(equipment.id) }
+                                else EquipmentListCard(equipment) { onItemClick(equipment.id) }
+                            }
+                        }
+                    }
+                    if (state.hasMore && !state.isLoading) item {
+                        FilledTonalButton(onClick = onLoadMore, enabled = !state.isLoadingMore, modifier = Modifier.padding(vertical = 12.dp)) {
                             Text(if (state.isLoadingMore) "Загрузка…" else "Загрузить ещё")
                         }
                     }
@@ -133,45 +140,121 @@ fun EquipmentScreen(
 }
 
 @Composable
-private fun SummaryCard(title: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))) {
-        Column(Modifier.padding(14.dp)) {
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun Sidebar(sections: List<Section>) {
+    Surface(Modifier.width(204.dp).fillMaxHeight(), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("OmniAsset", Modifier.padding(12.dp), style = MaterialTheme.typography.titleLarge)
+            for (section in sections) {
+                val selected = section.open == null
+                Surface(
+                    modifier = Modifier.fillMaxWidth().then(
+                        section.open?.let { Modifier.clickable(onClick = it) } ?: Modifier
+                    ),
+                    shape = MaterialTheme.shapes.medium,
+                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                ) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 13.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        section.icon?.let { Icon(it, contentDescription = null) }
+                        Text(section.name)
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun EquipmentCard(item: EquipmentRow, onItemClick: (Long) -> Unit) {
-    Card(
-        onClick = { onItemClick(item.id) },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
-    ) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            ) { Box(contentAlignment = Alignment.Center) { Icon(Lucide.Package, null, tint = MaterialTheme.colorScheme.primary) } }
-            Spacer(Modifier.size(14.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(item.inventoryNumber, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("${item.manufacturerName} ${item.modelName}")
-                item.locationName?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
-                item.responsibleName?.let { Text("Ответственный: $it", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+private fun EquipmentTopBar(sections: List<Section>, wide: Boolean, loading: Boolean, onRefresh: () -> Unit) {
+    var showMenu by remember { mutableStateOf(false) }
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (!wide) Box {
+                IconButton(onClick = { showMenu = true }) { Icon(Lucide.Menu, "Разделы") }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    sections.forEach { section ->
+                        val open = section.open
+                        DropdownMenuItem(text = { Text(section.name) }, onClick = { showMenu = false; open?.invoke() })
+                    }
+                }
             }
+            Text("Техника", Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onRefresh, enabled = !loading) { Icon(Lucide.RefreshCw, "Обновить") }
+        }
+    }
+}
+
+@Composable
+private fun EquipmentSearch(search: String, onChange: (String) -> Unit, modifier: Modifier) {
+    OutlinedTextField(
+        value = search, onValueChange = onChange, modifier = modifier, singleLine = true,
+        shape = MaterialTheme.shapes.medium,
+        leadingIcon = { Icon(Lucide.Search, contentDescription = null) },
+        trailingIcon = {
+            if (search.isNotEmpty()) IconButton(onClick = { onChange("") }) { Icon(Lucide.X, "Очистить") }
+        },
+        placeholder = { Text("Инвентарный номер, модель или бренд", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    )
+}
+
+@Composable
+private fun AddEquipmentButton(onAdd: () -> Unit) {
+    Button(onClick = onAdd) {
+        Icon(Lucide.Plus, contentDescription = null)
+        Text("Добавить технику", Modifier.padding(start = 6.dp))
+    }
+}
+
+@Composable
+private fun EquipmentTableHeader() {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            TableText("Инв. номер", 0.9f, heading = true)
+            TableText("Тип и модель", 1.5f, heading = true)
+            TableText("Статус", 1.2f, heading = true)
+            TableText("Место", 1f, heading = true)
+            TableText("Ответственный", 1.2f, heading = true)
+        }
+    }
+}
+
+@Composable
+private fun EquipmentTableRow(item: EquipmentRow, onOpen: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 62.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically
+            ) {
+                TableText(item.inventoryNumber, 0.9f)
+                Column(Modifier.weight(1.5f)) {
+                    Text("${item.manufacturerName} ${item.modelName}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(item.categoryName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                }
+                Box(Modifier.weight(1.2f)) { OmniStatusChip(item.statusCode, item.statusName) }
+                TableText(item.locationName ?: "—", 1f)
+                TableText(item.responsibleName ?: "—", 1.2f)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
+}
+
+@Composable
+private fun RowScope.TableText(value: String, width: Float, heading: Boolean = false) {
+    Text(
+        value, Modifier.weight(width), maxLines = 1, overflow = TextOverflow.Ellipsis,
+        style = if (heading) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium
+    )
+}
+
+@Composable
+private fun EquipmentListCard(item: EquipmentRow, onOpen: () -> Unit) {
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("${item.manufacturerName} ${item.modelName}", style = MaterialTheme.typography.titleMedium)
+            Text(listOfNotNull(item.inventoryNumber, item.locationName).joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
             OmniStatusChip(item.statusCode, item.statusName)
         }
-    }
-}
-
-@Composable
-private fun EmptyEquipmentState(modifier: Modifier = Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Lucide.Package, null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.size(12.dp))
-        Text("Оборудование не найдено", style = MaterialTheme.typography.titleMedium)
-        Text("Попробуйте изменить запрос или добавить первую запись", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

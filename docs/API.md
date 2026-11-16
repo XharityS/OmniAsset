@@ -37,7 +37,7 @@ PUT /api/equipment/{id} — изменение техники. Требует р
 
 POST /api/equipment/{id}/move — перемещение и смена ответственного. Тело: locationId, departmentId, employeeId, comment. Требует роль admin или operator. При смене ответственного операция закрывает старое закрепление и создаёт новое, если передан employeeId. Перемещение без смены сотрудника сохраняет текущее закрепление. Списанная техника возвращает 409.
 
-POST /api/equipment/{id}/status — смена статуса. Тело: statusCode, comment.
+POST /api/equipment/{id}/status — смена статуса администратором или оператором. Тело: statusCode, comment.
 
 POST /api/equipment/{id}/archive — архивирование техники администратором через статус written_off.
 
@@ -61,7 +61,11 @@ PUT /api/admin/references/{type}/{id} — изменение записи. Дл�
 
 POST /api/admin/users — создание пользователя. Тело: username, password, fullName, email, role.
 
+PUT /api/admin/users/{id} — изменение ФИО, email, роли и активности. Тело: fullName, email, role, isActive.
+
 POST /api/admin/users/{id}/block — блокировка пользователя.
+
+Администратор может менять свои ФИО и email, но не может заблокировать собственную учётную запись или снять с неё роль admin. Для запросов с JWT API сверяет текущую роль и активность учётной записи.
 
 ## Отчеты
 

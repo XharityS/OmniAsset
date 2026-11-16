@@ -38,18 +38,19 @@ class AuthViewModel(
 
     fun login() {
         val current = _state.value
+        if (current.isLoading || current.user != null) return
         if (current.username.isBlank() || current.password.isBlank()) {
             _state.value = current.copy(errorMessage = "Введите имя пользователя и пароль")
             return
         }
 
+        _state.value = current.copy(isLoading = true, errorMessage = null)
         scope.launch {
-            _state.value = _state.value.copy(isLoading = true, errorMessage = null)
             runCatching {
                 repository.login(current.username.trim(), current.password)
             }.onSuccess { response ->
                 onAuthenticated(response)
-                _state.value = _state.value.copy(isLoading = false, user = response)
+                _state.value = _state.value.copy(password = "", isLoading = false, user = response)
             }.onFailure { error ->
                 println("OmniAsset login failed: ${error.message}")
                 _state.value = _state.value.copy(
@@ -62,6 +63,8 @@ class AuthViewModel(
             }
         }
     }
+
+    fun logout() { _state.value = AuthUiState() }
 
     fun close() {
         scope.coroutineContext.cancel()
