@@ -11,6 +11,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import ru.echosystems.omni.app.core.network.ApiClient
 import ru.echosystems.omni.app.core.network.defaultApiBaseUrl
@@ -30,6 +31,7 @@ import ru.echosystems.omni.app.feature.equipment.EquipmentDetailScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentDetailViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentViewModel
+import ru.echosystems.omni.app.feature.equipment.EquipmentUiState
 import ru.echosystems.omni.app.feature.equipment.equipmentStatuses
 import ru.echosystems.omni.app.feature.reports.ReportFilters
 import ru.echosystems.omni.app.feature.reports.ReportsRepository
@@ -58,61 +60,112 @@ fun AppNavigation() {
     val equipmentState by equipmentViewModel.state.collectAsState()
     var selectedEquipmentId by remember { mutableStateOf<Long?>(null) }
     var reportFilters by remember { mutableStateOf<ReportFilters?>(null) }
-    val filters = reportFilters
-    var showDirectory by remember { mutableStateOf(false) }
-    var initialDirectory by remember { mutableStateOf<DirectoryType?>(null) }
-    var showUsers by remember { mutableStateOf(false) }
+    var section by remember { mutableStateOf(WorkspaceSection.EQUIPMENT) }
+    var navigationBusy by remember { mutableStateOf(false) }
     var showForm by remember { mutableStateOf(false) }
     var showMove by remember { mutableStateOf(false) }
-    val canEdit = state.user?.role == "admin"
-    val canMove = canEdit || state.user?.role == "operator"
+    val user = state.user
+    val canEdit = user?.role == "admin"
+    val canMove = canEdit || user?.role == "operator"
     val equipmentId = selectedEquipmentId
+    val filters = reportFilters
+    val directoryType = when (section) {
+        WorkspaceSection.EMPLOYEES -> DirectoryType.EMPLOYEES
+        WorkspaceSection.PLACES -> DirectoryType.LOCATIONS
+        else -> null
+    }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    fun navigate(destination: WorkspaceSection) {
+        if (navigationBusy || (destination.adminOnly && !canEdit)) return
+        if (destination == section && (destination != WorkspaceSection.EQUIPMENT ||
+            (selectedEquipmentId == null && !showForm && !showMove))
+        ) return
+        if (section in listOf(WorkspaceSection.DIRECTORY, WorkspaceSection.EMPLOYEES, WorkspaceSection.PLACES)) {
+            equipmentViewModel.loadFilters()
+        }
+        reportFilters = if (destination == WorkspaceSection.REPORTS) equipmentState.toReportFilters() else null
+        selectedEquipmentId = null
+        showForm = false
+        showMove = false
+        section = destination
+    }
+
+    if (user == null) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            AuthScreen(state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login)
+        }
+        return
+    }
+
+    Workspace(
+        selected = section,
+        isAdmin = canEdit,
+        navigationEnabled = !navigationBusy,
+        onSelect = { navigate(it) },
+        onLogout = {
+            if (!navigationBusy) {
+                navigate(WorkspaceSection.EQUIPMENT)
+                token = null
+                viewModel.logout()
+            }
+        }
+    ) { wide ->
         when {
-            state.user == null -> AuthScreen(
-                state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login
-            )
-            showUsers && canEdit -> {
+            section == WorkspaceSection.USERS && canEdit -> {
                 val scope = rememberCoroutineScope()
                 val users = remember(apiClient, scope) { UsersViewModel(UsersRepository(apiClient), scope) }
                 LaunchedEffect(users) { users.load() }
                 val usersState by users.state.collectAsState()
+                SideEffect { navigationBusy = usersState.saving }
+                val back: () -> Unit = {
+                    if (!users.state.value.saving) {
+                        if (users.state.value.draft != null) users.change(null)
+                        else navigate(WorkspaceSection.EQUIPMENT)
+                    }
+                }
+                WorkspaceBackHandler(back)
                 UsersScreen(
-                    usersState, requireNotNull(state.user).userId, users::edit,
+                    usersState, user.userId, users::edit,
                     users::change, users::save, users::load,
-                    onBack = { showUsers = false }
+                    onBack = { navigate(WorkspaceSection.EQUIPMENT) }
                 )
             }
-            filters != null -> {
+            section == WorkspaceSection.REPORTS && filters != null -> {
                 val scope = rememberCoroutineScope()
                 val reports = remember(apiClient, filters) { ReportsViewModel(ReportsRepository(apiClient), scope, filters) }
                 LaunchedEffect(reports) { reports.load() }
                 val reportsState by reports.state.collectAsState()
+                SideEffect { navigationBusy = reportsState.exporting }
+                WorkspaceBackHandler {
+                    if (!reports.state.value.exporting) navigate(WorkspaceSection.EQUIPMENT)
+                }
                 ReportsScreen(
                     state = reportsState,
                     filters = reports.filters,
                     onRefresh = reports::load,
                     onExport = reports::export,
-                    onBack = { reportFilters = null }
+                    onBack = { navigate(WorkspaceSection.EQUIPMENT) }
                 )
             }
-            showDirectory && canEdit -> {
+            canEdit && (section == WorkspaceSection.DIRECTORY || directoryType != null) -> {
                 val scope = rememberCoroutineScope()
-                val directory = remember(apiClient, scope) {
+                val directory = remember(apiClient, scope, section) {
                     DirectoryViewModel(DirectoryRepository(apiClient), scope)
                 }
-                LaunchedEffect(directory) { initialDirectory?.let(directory::open) }
+                LaunchedEffect(directory) { directoryType?.let(directory::open) }
                 val directoryState by directory.state.collectAsState()
-                DirectoryScreen(
-                    directoryState, directory::open, directory::select, directory::save,
-                    onBack = {
-                        if (directoryState.type == null) {
-                            showDirectory = false
-                            initialDirectory = null
-                            equipmentViewModel.loadFilters()
-                        } else directory.back()
+                SideEffect { navigationBusy = directoryState.saving }
+                val back: () -> Unit = {
+                    val current = directory.state.value
+                    val atEntry = current.type == null ||
+                        (directoryType == current.type && current.draft == null)
+                    if (!current.saving) {
+                        if (atEntry) navigate(WorkspaceSection.EQUIPMENT) else directory.back()
                     }
+                }
+                WorkspaceBackHandler(back)
+                DirectoryScreen(
+                    directoryState, directory::open, directory::select, directory::save, onBack = back
                 )
             }
             showMove && canMove && equipmentId != null -> {
@@ -122,11 +175,13 @@ fun AppNavigation() {
                 }
                 LaunchedEffect(move) { move.load() }
                 val moveState by move.state.collectAsState()
+                SideEffect { navigationBusy = moveState.saving }
+                WorkspaceBackHandler { if (!move.state.value.saving) showMove = false }
                 EquipmentMoveScreen(
                     state = moveState,
                     onChange = move::change,
                     onRetry = move::load,
-                    onSave = { move.save { showMove = false } },
+                    onSave = { move.save { navigationBusy = false; showMove = false } },
                     onBack = { showMove = false }
                 )
             }
@@ -136,6 +191,8 @@ fun AppNavigation() {
                     EquipmentFormViewModel(repository, equipmentId, scope)
                 }
                 val formState by form.state.collectAsState()
+                SideEffect { navigationBusy = formState.saving }
+                WorkspaceBackHandler { if (!form.state.value.saving) showForm = false }
                 EquipmentFormScreen(
                     editing = equipmentId != null,
                     state = formState,
@@ -143,6 +200,7 @@ fun AppNavigation() {
                     onRetry = form::load,
                     onSave = {
                         form.save { savedId ->
+                            navigationBusy = false
                             selectedEquipmentId = savedId
                             showForm = false
                         }
@@ -150,48 +208,27 @@ fun AppNavigation() {
                     onBack = { showForm = false }
                 )
             }
-            equipmentId == null -> EquipmentScreen(
-                state = equipmentState,
-                onSearchChanged = equipmentViewModel::onSearchChanged,
-                onRefresh = equipmentViewModel::load,
-                onLoadMore = equipmentViewModel::loadMore,
-                onStatus = equipmentViewModel::selectStatus,
-                onCategory = equipmentViewModel::selectCategory,
-                onLocation = equipmentViewModel::selectLocation,
-                onAdd = if (canEdit) ({ showForm = true }) else null,
-                onDirectory = if (canEdit) ({ showDirectory = true }) else null,
-                onEmployees = if (canEdit) ({ initialDirectory = DirectoryType.EMPLOYEES; showDirectory = true }) else null,
-                onPlaces = if (canEdit) ({ initialDirectory = DirectoryType.LOCATIONS; showDirectory = true }) else null,
-                onUsers = if (canEdit) ({ showUsers = true }) else null,
-                onReports = {
-                    val status = equipmentState.statusIndex?.let { equipmentStatuses.getOrNull(it.toInt()) }
-                    reportFilters = ReportFilters(
-                        search = equipmentState.search,
-                        status = status?.first,
-                        categoryId = equipmentState.categoryId,
-                        locationId = equipmentState.locationId,
-                        labels = buildList {
-                            equipmentState.search.trim().takeIf { it.isNotEmpty() }?.let { add("Поиск: $it") }
-                            status?.let { add("Статус: ${it.second}") }
-                            equipmentState.categoryId?.let { id ->
-                                add("Категория: ${equipmentState.categories.find { it.id == id }?.name ?: id}")
-                            }
-                            equipmentState.locationId?.let { id ->
-                                add("Расположение: ${equipmentState.locations.find { it.id == id }?.name ?: id}")
-                            }
-                        }
-                    )
-                },
-                onLogout = {
-                    token = null
-                    viewModel.logout()
-                },
-                onItemClick = { selectedEquipmentId = it }
-            )
+            equipmentId == null -> {
+                SideEffect { navigationBusy = false }
+                EquipmentScreen(
+                    state = equipmentState,
+                    wide = wide,
+                    onSearchChanged = equipmentViewModel::onSearchChanged,
+                    onRefresh = equipmentViewModel::load,
+                    onLoadMore = equipmentViewModel::loadMore,
+                    onStatus = equipmentViewModel::selectStatus,
+                    onCategory = equipmentViewModel::selectCategory,
+                    onLocation = equipmentViewModel::selectLocation,
+                    onAdd = if (canEdit) ({ showForm = true }) else null,
+                    onItemClick = { selectedEquipmentId = it }
+                )
+            }
             else -> {
                 val scope = rememberCoroutineScope()
                 val detail = remember(repository, equipmentId) { EquipmentDetailViewModel(repository, scope) }
                 val detailState by detail.state.collectAsState()
+                SideEffect { navigationBusy = detailState.isActionLoading }
+                WorkspaceBackHandler { if (!detail.state.value.isActionLoading) selectedEquipmentId = null }
                 EquipmentDetailScreen(
                     equipmentId = equipmentId,
                     state = detailState,
@@ -204,4 +241,20 @@ fun AppNavigation() {
             }
         }
     }
+}
+
+private fun EquipmentUiState.toReportFilters(): ReportFilters {
+    val status = statusIndex?.let { equipmentStatuses.getOrNull(it.toInt()) }
+    return ReportFilters(
+        search = search,
+        status = status?.first,
+        categoryId = categoryId,
+        locationId = locationId,
+        labels = buildList {
+            search.trim().takeIf { it.isNotEmpty() }?.let { add("Поиск: $it") }
+            status?.let { add("Статус: ${it.second}") }
+            categoryId?.let { id -> add("Категория: ${categories.find { it.id == id }?.name ?: id}") }
+            locationId?.let { id -> add("Расположение: ${locations.find { it.id == id }?.name ?: id}") }
+        }
+    )
 }
