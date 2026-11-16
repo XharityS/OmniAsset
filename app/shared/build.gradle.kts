@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    kotlin("plugin.serialization") version "2.4.21"
 }
 
 kotlin {
@@ -13,40 +14,41 @@ kotlin {
         namespace = "ru.echosystems.omni.app.shared"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_11
-        }
-        androidResources {
-            enable = true
-        }
-        withHostTest {
-            isIncludeAndroidResources = true
-        }
+        compilerOptions { jvmTarget = JvmTarget.JVM_11 }
+        androidResources { enable = true }
+        withHostTest { isIncludeAndroidResources = true }
         withDeviceTestBuilder {
             sourceSetTreeName = "test"
-        }.configure {
-            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        }
+        }.configure { instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     }
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
+            implementation("io.ktor:ktor-client-okhttp:3.6.0")
+        }
+        jvmMain.dependencies {
+            implementation("io.ktor:ktor-client-cio:3.6.0")
         }
         commonMain.dependencies {
             api(project(":core"))
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
+            implementation("com.composables:icons-lucide-cmp:2.2.1")
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation("io.ktor:ktor-client-core:3.6.0")
+            implementation("io.ktor:ktor-client-content-negotiation:3.6.0")
+            implementation("io.ktor:ktor-client-auth:3.6.0")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
         }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
-        }
+        commonTest.dependencies { implementation(libs.kotlin.test) }
         getByName("androidDeviceTest").dependencies {
             implementation(libs.androidx.testRunner)
         }

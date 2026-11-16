@@ -1,31 +1,77 @@
-This is a Kotlin Multiplatform project targeting Android, Desktop (JVM), Server.
+# OmniAsset
 
-* [/app/shared](./app/shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-    - [commonMain](./app/shared/src/commonMain/kotlin) is for code that’s common for all targets.
-    - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-      For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-      the [iosMain](./app/shared/src/iosMain/kotlin) folder would be the right place for such calls.
-      Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./app/shared/src/jvmMain/kotlin)
-      folder is the appropriate location.
+Kotlin Multiplatform application for computer equipment inventory.
 
-* [/core](./core/src) is for the code that will be shared between all targets in the project.
-  The most important subfolder is [commonMain](./core/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+## Server
 
-* [/server](./server/src/main/kotlin) is for the Ktor server application.
+The Ktor server uses PostgreSQL through HikariCP. The server is the only component that connects to the database; desktop and Android clients use the HTTP API.
 
-### Running the apps
+### Database
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and
-options:
+Create a database named `omniasset`. On an empty database, Flyway applies:
 
-- Android app: `./gradlew :app:androidApp:assembleDebug`
-- Desktop app:
-    - Hot reload: `./gradlew :app:desktopApp:hotRun --auto`
-    - Standard run: `./gradlew :app:desktopApp:run`
-- Server: `./gradlew :server:run`
+`server/src/main/resources/db/migration/V1__create_inventory_schema.sql`
 
----
+If the `inventory` schema was created manually from the supplied SQL, Flyway baselines that existing schema at version 1.
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+### Environment
+
+Set these variables before starting the server:
+
+```bash
+export DATABASE_JDBC_URL='jdbc:postgresql://10.1.2.114:5432/omniasset?currentSchema=inventory'
+export DATABASE_USERNAME='postgres'
+export DATABASE_PASSWORD='change-me'
+export JWT_SECRET='replace-with-a-long-random-secret'
+```
+
+Optional pool settings:
+
+```bash
+export DATABASE_MAX_POOL_SIZE=15
+export DATABASE_MIN_IDLE=5
+export DATABASE_CONNECTION_TIMEOUT=5000
+```
+
+Start the server:
+
+```bash
+./gradlew :server:run
+```
+
+The health check is available at `GET /health`.
+
+### Initial administrator
+
+After the migration, create the first administrator in DBeaver. The password is hashed by PostgreSQL `pgcrypto`:
+
+```sql
+INSERT INTO inventory.app_users (
+    username,
+    password_hash,
+    full_name,
+    role
+)
+VALUES (
+    'admin',
+    crypt('replace-with-your-password', gen_salt('bf')),
+    'Administrator',
+    'admin'
+);
+```
+
+### Equipment API
+
+After login, send the returned JWT as:
+
+```http
+Authorization: Bearer <token>
+```
+
+List equipment with pagination and filters:
+
+```http
+GET /api/equipment?search=thinkpad&status=assigned&categoryId=1&locationId=2&employeeId=3&limit=50&offset=0
+```
+
+The first server stage includes the login endpoint, filtered equipment list, atomic movement and status change operations, Flyway migration, and a bounded report semaphore. Equipment movement and status changes are available only to authenticated users.
