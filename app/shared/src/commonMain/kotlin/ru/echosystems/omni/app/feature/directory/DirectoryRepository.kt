@@ -75,7 +75,10 @@ internal class DirectoryRepository(apiClient: ApiClient) {
 
     suspend fun list(type: DirectoryType): List<DirectoryEntry> {
         val response = client.get(type.path)
-        response.requireSuccess("Не удалось загрузить справочник")
+        response.requireSuccess(
+            fallback = "Не удалось загрузить справочник",
+            notFound = "Маршрут справочника недоступен на сервере (HTTP 404). Проверьте версию API."
+        )
         return if (type == DirectoryType.EMPLOYEES) response.body<List<EmployeeRecord>>().map {
             DirectoryEntry(
                 id = it.id, name = it.fullName, position = it.position, department = it.department,
@@ -106,16 +109,19 @@ internal class DirectoryRepository(apiClient: ApiClient) {
                 setBody(request)
             }
         }
-        response.requireSuccess("Не удалось сохранить запись")
+        response.requireSuccess(
+            fallback = "Не удалось сохранить запись",
+            notFound = if (id == null) "Маршрут создания записи недоступен (HTTP 404)" else "Запись не найдена"
+        )
     }
 
-    private fun HttpResponse.requireSuccess(fallback: String) {
+    private fun HttpResponse.requireSuccess(fallback: String, notFound: String) {
         if (status.value in 200..299) return
         val message = when (status.value) {
             400 -> "Проверьте заполненные поля"
             401 -> "Сессия истекла. Войдите снова."
             403 -> "Нужны права администратора"
-            404 -> "Запись не найдена"
+            404 -> notFound
             409 -> "Такая запись уже существует"
             else -> fallback
         }
