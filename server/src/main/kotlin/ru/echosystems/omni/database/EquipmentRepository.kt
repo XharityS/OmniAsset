@@ -33,7 +33,8 @@ class EquipmentRepository {
         locationId: Long?,
         employeeId: Long?,
         limit: Int,
-        offset: Long
+        offset: Long,
+        afterId: Long? = null
     ): EquipmentPage = dbQuery { connection ->
         val safeLimit = limit.coerceIn(1, 100)
         val safeOffset = offset.coerceAtLeast(0)
@@ -68,6 +69,11 @@ class EquipmentRepository {
 
         employeeId?.let {
             conditions += "active_assignment.employee_id = ?"
+            parameters += it
+        }
+
+        afterId?.let {
+            conditions += "e.id > ?"
             parameters += it
         }
 

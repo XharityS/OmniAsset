@@ -2,6 +2,7 @@ package ru.echosystems.omni
 
 import java.sql.SQLException
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.withCharset
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -215,26 +216,44 @@ fun Application.module() {
             }
 
             get("/api/equipment.csv") {
-                val page = equipmentRepository.findPage(
-                    search = call.request.queryParameters["search"],
-                    statusCode = call.request.queryParameters["status"],
-                    categoryId = call.request.queryParameters["categoryId"]?.toLongOrNull(),
-                    locationId = call.request.queryParameters["locationId"]?.toLongOrNull(),
-                    employeeId = call.request.queryParameters["employeeId"]?.toLongOrNull(),
+                val query = call.request.queryParameters
+                val search = query["search"]
+                val status = query["status"]
+                val categoryId = query["categoryId"]?.toLongOrNull()
+                val locationId = query["locationId"]?.toLongOrNull()
+                val employeeId = query["employeeId"]?.toLongOrNull()
+
+                suspend fun page(afterId: Long?) = equipmentRepository.findPage(
+                    search = search,
+                    statusCode = status,
+                    categoryId = categoryId,
+                    locationId = locationId,
+                    employeeId = employeeId,
                     limit = 100,
-                    offset = 0
+                    offset = 0,
+                    afterId = afterId
                 )
-                val csv = buildString {
-                    appendLine("id;inventory_number;serial_number;model;manufacturer;category;status;location;department;responsible")
-                    page.items.forEach { item ->
-                        appendLine(listOf(item.id,item.inventoryNumber,item.serialNumber,item.modelName,
-                            item.manufacturerName,item.categoryName,item.statusName,item.locationName,
-                            item.departmentName,item.responsibleName).joinToString(";") { value ->
-                            value?.toString()?.replace(";", ",") ?: ""
-                        })
+
+                val firstPage = reportSemaphore.withPermit { page(null) }
+                call.response.header("Content-Disposition", "attachment; filename=omniasset-equipment.csv")
+                call.respondTextWriter(io.ktor.http.ContentType.Text.CSV.withCharset(Charsets.UTF_8)) {
+                    write("\uFEFF")
+                    write("id;inventory_number;serial_number;model;manufacturer;category;status;location;department;responsible\r\n")
+                    var current = firstPage
+                    while (true) {
+                        for (item in current.items) {
+                            write(listOf(
+                                item.id, item.inventoryNumber, item.serialNumber, item.modelName,
+                                item.manufacturerName, item.categoryName, item.statusName, item.locationName,
+                                item.departmentName, item.responsibleName
+                            ).joinToString(";") { csvCell(it) })
+                            write("\r\n")
+                        }
+                        if (!current.hasMore) break
+                        val afterId = current.items.last().id
+                        current = reportSemaphore.withPermit { page(afterId) }
                     }
                 }
-                call.respondText(csv, io.ktor.http.ContentType.Text.CSV)
             }
 
             get("/api/admin/references/{type}") {
@@ -365,3 +384,12 @@ private suspend fun <T : Any> ApplicationCall.saveEquipment(save: suspend () -> 
         }
         null
     }
+
+private fun csvCell(value: Any?): String {
+    val text = value?.toString().orEmpty()
+    val first = text.trimStart().firstOrNull()
+    val safeText = if (first != null && first in "=+-@") "'" + text else text
+    return if (safeText.any { it == ';' || it == '"' || it == '\r' || it == '\n' }) {
+        "\"" + safeText.replace("\"", "\"\"") + "\""
+    } else safeText
+}

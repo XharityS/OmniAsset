@@ -23,6 +23,7 @@ kotlin {
     }
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.compose.uiTooling)
             implementation("io.ktor:ktor-client-okhttp:3.6.0")

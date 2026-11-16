@@ -50,6 +50,7 @@ fun EquipmentScreen(
     onLocation: (Long?) -> Unit,
     onAdd: (() -> Unit)? = null,
     onDirectory: (() -> Unit)? = null,
+    onReports: () -> Unit,
     onItemClick: (Long) -> Unit
 ) {
     var searchFocused by remember { mutableStateOf(false) }
@@ -71,7 +72,10 @@ fun EquipmentScreen(
                 }
             }
 
-            onDirectory?.let { androidx.compose.material3.TextButton(onClick = it) { Text("Справочники") } }
+            Row {
+                onDirectory?.let { androidx.compose.material3.TextButton(onClick = it) { Text("Справочники") } }
+                androidx.compose.material3.TextButton(onClick = onReports) { Text("Отчёты") }
+            }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SummaryCard("Загружено", state.items.size.toString(), Modifier.weight(1f))

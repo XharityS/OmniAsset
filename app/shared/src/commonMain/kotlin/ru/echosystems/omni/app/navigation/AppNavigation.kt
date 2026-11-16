@@ -28,6 +28,11 @@ import ru.echosystems.omni.app.feature.equipment.EquipmentDetailScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentDetailViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentViewModel
+import ru.echosystems.omni.app.feature.equipment.equipmentStatuses
+import ru.echosystems.omni.app.feature.reports.ReportFilters
+import ru.echosystems.omni.app.feature.reports.ReportsRepository
+import ru.echosystems.omni.app.feature.reports.ReportsScreen
+import ru.echosystems.omni.app.feature.reports.ReportsViewModel
 
 @Composable
 fun AppNavigation() {
@@ -44,6 +49,8 @@ fun AppNavigation() {
     val equipmentViewModel = remember(repository) { EquipmentViewModel(repository) }
     val equipmentState by equipmentViewModel.state.collectAsState()
     var selectedEquipmentId by remember { mutableStateOf<Long?>(null) }
+    var reportFilters by remember { mutableStateOf<ReportFilters?>(null) }
+    val filters = reportFilters
     var showDirectory by remember { mutableStateOf(false) }
     var showForm by remember { mutableStateOf(false) }
     var showMove by remember { mutableStateOf(false) }
@@ -56,6 +63,19 @@ fun AppNavigation() {
             state.user == null -> AuthScreen(
                 state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login
             )
+            filters != null -> {
+                val scope = rememberCoroutineScope()
+                val reports = remember(apiClient, filters) { ReportsViewModel(ReportsRepository(apiClient), scope, filters) }
+                LaunchedEffect(reports) { reports.load() }
+                val reportsState by reports.state.collectAsState()
+                ReportsScreen(
+                    state = reportsState,
+                    filters = reports.filters,
+                    onRefresh = reports::load,
+                    onExport = reports::export,
+                    onBack = { reportFilters = null }
+                )
+            }
             showDirectory && canEdit -> {
                 val scope = rememberCoroutineScope()
                 val directory = remember(apiClient, scope) {
@@ -117,6 +137,25 @@ fun AppNavigation() {
                 onLocation = equipmentViewModel::selectLocation,
                 onAdd = if (canEdit) ({ showForm = true }) else null,
                 onDirectory = if (canEdit) ({ showDirectory = true }) else null,
+                onReports = {
+                    val status = equipmentState.statusIndex?.let { equipmentStatuses.getOrNull(it.toInt()) }
+                    reportFilters = ReportFilters(
+                        search = equipmentState.search,
+                        status = status?.first,
+                        categoryId = equipmentState.categoryId,
+                        locationId = equipmentState.locationId,
+                        labels = buildList {
+                            equipmentState.search.trim().takeIf { it.isNotEmpty() }?.let { add("Поиск: $it") }
+                            status?.let { add("Статус: ${it.second}") }
+                            equipmentState.categoryId?.let { id ->
+                                add("Категория: ${equipmentState.categories.find { it.id == id }?.name ?: id}")
+                            }
+                            equipmentState.locationId?.let { id ->
+                                add("Расположение: ${equipmentState.locations.find { it.id == id }?.name ?: id}")
+                            }
+                        }
+                    )
+                },
                 onItemClick = { selectedEquipmentId = it }
             )
             else -> {

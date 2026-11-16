@@ -67,7 +67,7 @@ POST /api/admin/users/{id}/block — блокировка пользовател
 
 GET /api/summary/statuses — количество техники по статусам.
 
-GET /api/equipment.csv — CSV-экспорт списка техники с фильтрами.
+GET /api/equipment.csv — выгружает все подходящие записи (UTF-8, разделитель — точка с запятой). Принимает search, status, categoryId, locationId и employeeId.
 
 GET /api/reports/equipment — ограниченный по параллельности отчетный список.
 
