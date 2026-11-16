@@ -3,6 +3,8 @@ package ru.echosystems.omni.app.ui
 internal data class FormDate private constructor(val year: Int, val month: Int, val day: Int) {
     fun toIso(): String = "${year.toString().padStart(4, '0')}-${twoDigits(month)}-${twoDigits(day)}"
 
+    fun toDisplay(): String = "${twoDigits(day)}.${twoDigits(month)}.${year.toString().padStart(4, '0')}"
+
     fun toUtcMillis(): Long {
         val daysInEarlierMonths = (1 until month).sumOf { daysInMonth(year, it) }
         return (daysBeforeYear(year) - epochDays + daysInEarlierMonths + day - 1) * millisPerDay
@@ -28,7 +30,7 @@ internal data class FormDate private constructor(val year: Int, val month: Int, 
 
         // The date picker represents a calendar day as midnight in UTC.
         fun fromUtcMillis(millis: Long): FormDate {
-            val days = millis / millisPerDay + epochDays
+            val days = (millis / millisPerDay - if (millis < 0 && millis % millisPerDay != 0L) 1 else 0) + epochDays
             var lower = 1
             var upper = 10000
             while (upper - lower > 1) {

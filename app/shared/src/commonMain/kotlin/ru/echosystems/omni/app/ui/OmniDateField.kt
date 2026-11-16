@@ -30,7 +30,7 @@ internal fun OmniDateField(
 ) {
     var showCalendar by remember { mutableStateOf(false) }
     OutlinedTextField(
-        value = value.orEmpty(),
+        value = value.orEmpty().let { if ('-' in it) FormDate.parse(it)?.toDisplay() ?: it else it },
         onValueChange = onChange,
         label = { Text(label) },
         placeholder = { Text("ДД.ММ.ГГГГ") },
@@ -56,7 +56,7 @@ internal fun OmniDateField(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        picker.selectedDateMillis?.let { onChange(FormDate.fromUtcMillis(it).toIso()) }
+                        picker.selectedDateMillis?.let { onChange(FormDate.fromUtcMillis(it).toDisplay()) }
                         showCalendar = false
                     },
                     enabled = picker.selectedDateMillis != null

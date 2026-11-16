@@ -81,14 +81,16 @@ internal fun UsersScreen(
 @Composable
 private fun UserFields(draft: UserDraft, saving: Boolean, showErrors: Boolean, currentUserId: String, onChange: (UserDraft) -> Unit) {
     EquipmentField("Логин", draft.username, !saving && draft.id == null, required = draft.id == null,
-        error = "Укажите логин".takeIf { showErrors && draft.id == null && draft.username.isBlank() }) { onChange(draft.copy(username = it)) }
+        error = "Укажите логин до 50 символов".takeIf { showErrors && draft.id == null && draft.username.trim().length !in 1..50 }) { onChange(draft.copy(username = it)) }
     EquipmentField("ФИО", draft.fullName, !saving, required = true,
-        error = "Укажите ФИО".takeIf { showErrors && draft.fullName.isBlank() }) { onChange(draft.copy(fullName = it)) }
-    EquipmentField("Электронная почта", draft.email, !saving) { onChange(draft.copy(email = it)) }
+        error = "Укажите ФИО до 150 символов".takeIf { showErrors && draft.fullName.trim().length !in 1..150 }) { onChange(draft.copy(fullName = it)) }
+    EquipmentField("Электронная почта", draft.email, !saving,
+        error = "До 150 символов".takeIf { showErrors && draft.email.trim().length > 150 }) { onChange(draft.copy(email = it)) }
     if (draft.id == null) {
         OutlinedTextField(
             draft.password, { onChange(draft.copy(password = it)) },
             label = { Text("Пароль *") },
+            supportingText = { Text("Не менее 8 символов, не более 72 байт") },
             isError = showErrors && (draft.password.length < 8 || draft.password.encodeToByteArray().size > 72),
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true, enabled = !saving, modifier = Modifier.fillMaxWidth()
