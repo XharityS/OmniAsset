@@ -93,8 +93,12 @@ internal data class UsersState(
     val draft: UserDraft? = null,
     val loading: Boolean = true,
     val saving: Boolean = false,
-    val error: String? = null
-)
+    val error: String? = null,
+    val original: UserDraft? = null,
+    val validationAttempted: Boolean = false
+) {
+    val dirty: Boolean get() = draft != null && draft.cleaned() != original?.cleaned()
+}
 
 internal class UsersViewModel(private val repository: UsersRepository, private val scope: CoroutineScope) {
     private val mutableState = MutableStateFlow(UsersState())
@@ -115,20 +119,24 @@ internal class UsersViewModel(private val repository: UsersRepository, private v
     }
 
     fun edit(user: ManagedUser?) {
-        change(user?.let { UserDraft(it.id, it.username, it.fullName, it.email.orEmpty(), it.role, it.isActive) } ?: UserDraft())
+        val draft = user?.let { UserDraft(it.id, it.username, it.fullName, it.email.orEmpty(), it.role, it.isActive) } ?: UserDraft()
+        mutableState.update { it.copy(draft = draft, original = draft, validationAttempted = false, error = null) }
     }
 
     fun change(draft: UserDraft?) {
-        if (!mutableState.value.saving) mutableState.update { it.copy(draft = draft, error = null) }
+        if (!mutableState.value.saving) mutableState.update { it.copy(
+            draft = draft,
+            original = if (draft == null) null else it.original,
+            validationAttempted = draft != null && it.validationAttempted,
+            error = null
+        ) }
     }
 
     fun save() {
         val current = mutableState.value
         val draft = current.draft ?: return
         if (current.saving) return
-        val valid = draft.copy(
-            username = draft.username.trim(), fullName = draft.fullName.trim(), email = draft.email.trim()
-        )
+        val valid = draft.cleaned()
         val error = when {
             valid.fullName.length !in 1..150 -> "Укажите ФИО (до 150 символов)"
             valid.email.length > 150 -> "Сократите адрес почты до 150 символов"
@@ -138,14 +146,14 @@ internal class UsersViewModel(private val repository: UsersRepository, private v
             else -> null
         }
         if (error != null) {
-            mutableState.update { it.copy(error = error) }
+            mutableState.update { it.copy(error = error, validationAttempted = true) }
             return
         }
         mutableState.update { it.copy(saving = true, error = null) }
         scope.launch {
             try {
                 repository.save(valid)
-                mutableState.update { it.copy(draft = null, saving = false) }
+                mutableState.update { it.copy(draft = null, original = null, validationAttempted = false, saving = false) }
                 load()
             } catch (error: CancellationException) {
                 throw error
@@ -157,3 +165,5 @@ internal class UsersViewModel(private val repository: UsersRepository, private v
 
     private fun message(error: Exception) = (error as? ApiException)?.userMessage ?: "Не удалось выполнить запрос"
 }
+
+private fun UserDraft.cleaned() = copy(username = username.trim(), fullName = fullName.trim(), email = email.trim())

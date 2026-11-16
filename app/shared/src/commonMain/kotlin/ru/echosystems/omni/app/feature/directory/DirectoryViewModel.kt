@@ -18,8 +18,12 @@ internal data class DirectoryState(
     val draft: DirectoryEntry? = null,
     val loading: Boolean = false,
     val saving: Boolean = false,
-    val error: String? = null
-)
+    val error: String? = null,
+    val original: DirectoryEntry? = null,
+    val validationAttempted: Boolean = false
+) {
+    val dirty: Boolean get() = draft != null && draft.cleaned() != original?.cleaned()
+}
 
 internal class DirectoryViewModel(
     private val repository: DirectoryRepository,
@@ -51,14 +55,18 @@ internal class DirectoryViewModel(
     }
 
     fun select(entry: DirectoryEntry) {
-        mutableState.value = mutableState.value.copy(draft = entry, error = null)
+        mutableState.value = mutableState.value.copy(draft = entry, original = entry, error = null, validationAttempted = false)
+    }
+
+    fun change(entry: DirectoryEntry) {
+        if (!mutableState.value.saving) mutableState.value = mutableState.value.copy(draft = entry, error = null)
     }
 
     fun back() {
         val current = mutableState.value
         if (current.saving) return
         if (current.draft != null) {
-            mutableState.value = current.copy(draft = null, error = null)
+            mutableState.value = current.copy(draft = null, original = null, error = null, validationAttempted = false)
         } else {
             loadJob?.cancel()
             mutableState.value = DirectoryState()
@@ -70,16 +78,7 @@ internal class DirectoryViewModel(
         val type = current.type ?: return
         val draft = current.draft ?: return
         if (current.saving) return
-        val request = draft.copy(
-            name = draft.name.trim(),
-            description = draft.description.clean(),
-            building = draft.building.orEmpty().trim(),
-            roomNumber = draft.roomNumber.orEmpty().trim(),
-            position = draft.position.clean(),
-            department = draft.department.clean(),
-            phone = draft.phone.clean(),
-            email = draft.email.clean()
-        )
+        val request = draft.cleaned()
         val maxName = if (type == DirectoryType.EMPLOYEES || type == DirectoryType.MODELS) 150 else 100
         val validation = when {
             request.name.length !in 1..maxName -> "Заполните название или ФИО (до $maxName символов)"
@@ -95,7 +94,7 @@ internal class DirectoryViewModel(
             else -> null
         }
         if (validation != null) {
-            mutableState.value = current.copy(error = validation)
+            mutableState.value = current.copy(error = validation, validationAttempted = true)
             return
         }
         mutableState.value = current.copy(saving = true, error = null)
@@ -111,6 +110,18 @@ internal class DirectoryViewModel(
         }
     }
 
-    private fun String?.clean() = this?.trim()?.takeIf { it.isNotEmpty() }
     private fun message(error: Exception, fallback: String) = (error as? ApiException)?.userMessage ?: fallback
 }
+
+private fun DirectoryEntry.cleaned() = copy(
+    name = name.trim(),
+    description = description.clean(),
+    building = building.orEmpty().trim(),
+    roomNumber = roomNumber.orEmpty().trim(),
+    position = position.clean(),
+    department = department.clean(),
+    phone = phone.clean(),
+    email = email.clean()
+)
+
+private fun String?.clean() = this?.trim()?.takeIf { it.isNotEmpty() }

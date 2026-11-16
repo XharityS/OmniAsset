@@ -28,6 +28,8 @@ data class EquipmentMoveState(
     val saving: Boolean = false,
     val error: String? = null
 ) {
+    val dirty: Boolean get() = hasChanges || !draft?.comment.isNullOrBlank()
+
     val hasChanges: Boolean
         get() = item != null && draft != null && (
             draft.locationId != item.locationId ||

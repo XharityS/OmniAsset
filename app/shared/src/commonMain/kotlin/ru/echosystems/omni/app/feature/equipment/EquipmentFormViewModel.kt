@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import ru.echosystems.omni.app.core.network.ApiException
+import ru.echosystems.omni.app.ui.FormDate
 
 @Serializable
 data class EquipmentFormRequest(
@@ -28,6 +29,8 @@ data class EquipmentFormRequest(
 @Serializable
 internal data class CreatedEquipment(val id: Long)
 
+enum class EquipmentFormField { INVENTORY, MODEL, STATUS, PURCHASE, COMMISSIONING, WARRANTY }
+
 data class EquipmentFormState(
     val draft: EquipmentFormRequest = EquipmentFormRequest(),
     val models: List<ReferenceItem> = emptyList(),
@@ -37,8 +40,15 @@ data class EquipmentFormState(
     val loading: Boolean = true,
     val saving: Boolean = false,
     val ready: Boolean = false,
-    val error: String? = null
-)
+    val error: String? = null,
+    val original: EquipmentFormRequest = EquipmentFormRequest(),
+    val validationAttempted: Boolean = false
+) {
+    val dirty: Boolean get() = ready && draft.cleaned() != original.cleaned()
+
+    val fieldErrors: Map<EquipmentFormField, String>
+        get() = if (validationAttempted) draft.validationErrors() else emptyMap()
+}
 
 class EquipmentFormViewModel(
     private val repository: EquipmentRepository,
@@ -71,7 +81,7 @@ class EquipmentFormViewModel(
                     } ?: EquipmentFormRequest()
                     EquipmentFormState(
                         draft, models.await(), statuses.await(), locations.await(), departments.await(),
-                        loading = false, ready = true
+                        loading = false, ready = true, original = draft
                     )
                 }
             } catch (error: CancellationException) {
@@ -92,21 +102,13 @@ class EquipmentFormViewModel(
         val current = mutableState.value
         if (!current.ready || current.saving) return
         val draft = current.draft
-        val request = draft.copy(
-            inventoryNumber = draft.inventoryNumber.trim(),
-            serialNumber = draft.serialNumber.clean(),
-            purchaseDate = draft.purchaseDate.clean(),
-            commissioningDate = draft.commissioningDate.clean(),
-            warrantyUntil = draft.warrantyUntil.clean(),
-            purchasePrice = draft.purchasePrice.clean()?.replace(',', '.'),
-            notes = draft.notes.clean()
-        )
+        if (draft.validationErrors().isNotEmpty()) {
+            mutableState.value = current.copy(validationAttempted = true, error = "Проверьте выделенные поля")
+            return
+        }
+        val request = draft.cleaned()
         val error = when {
-            request.inventoryNumber.length !in 1..50 -> "Укажите инвентарный номер до 50 символов"
             (request.serialNumber?.length ?: 0) > 100 -> "Серийный номер должен быть до 100 символов"
-            request.modelId == null || request.statusId == null -> "Выберите модель и статус"
-            listOfNotNull(request.purchaseDate, request.commissioningDate, request.warrantyUntil)
-                .any { !it.matches(Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}")) } -> "Введите даты в формате ГГГГ-ММ-ДД"
             request.purchasePrice?.matches(Regex("[0-9]{1,10}(\\.[0-9]{1,2})?")) == false -> "Введите корректную стоимость"
             else -> null
         }
@@ -130,5 +132,38 @@ class EquipmentFormViewModel(
         }
     }
 
-    private fun String?.clean() = this?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+private fun EquipmentFormRequest.cleaned() = copy(
+    inventoryNumber = inventoryNumber.trim(),
+    serialNumber = serialNumber.clean(),
+    purchaseDate = purchaseDate.normalizedDate(),
+    commissioningDate = commissioningDate.normalizedDate(),
+    warrantyUntil = warrantyUntil.normalizedDate(),
+    purchasePrice = purchasePrice.clean()?.replace(',', '.'),
+    notes = notes.clean()
+)
+
+private fun String?.clean() = this?.trim()?.takeIf { it.isNotEmpty() }
+private fun String?.normalizedDate() = clean()?.let { FormDate.parse(it)?.toIso() ?: it }
+
+private fun EquipmentFormRequest.validationErrors() = buildMap {
+    if (inventoryNumber.trim().length !in 1..50) put(EquipmentFormField.INVENTORY, "Укажите номер до 50 символов")
+    if (modelId == null) put(EquipmentFormField.MODEL, "Выберите модель")
+    if (statusId == null) put(EquipmentFormField.STATUS, "Выберите статус")
+    val dates = mapOf(
+        EquipmentFormField.PURCHASE to purchaseDate,
+        EquipmentFormField.COMMISSIONING to commissioningDate,
+        EquipmentFormField.WARRANTY to warrantyUntil
+    )
+    dates.forEach { (field, value) ->
+        if (!value.isNullOrBlank() && FormDate.parse(value) == null) {
+            put(field, "Введите действительную дату в указанном формате")
+        }
+    }
+    val purchase = FormDate.parse(purchaseDate.orEmpty())?.toIso()
+    val commissioning = FormDate.parse(commissioningDate.orEmpty())?.toIso()
+    if (purchase != null && commissioning != null && commissioning < purchase) {
+        put(EquipmentFormField.COMMISSIONING, "Дата ввода не может быть раньше даты покупки")
+    }
 }

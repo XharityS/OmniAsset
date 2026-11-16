@@ -83,7 +83,7 @@ fun AuthScreen(
                     OutlinedTextField(
                         value = state.username,
                         onValueChange = onUsernameChanged,
-                        label = { Text("Имя пользователя") },
+                        label = { Text("Имя пользователя *") },
                         leadingIcon = { Icon(Lucide.User, null) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -92,7 +92,7 @@ fun AuthScreen(
                     OutlinedTextField(
                         value = state.password,
                         onValueChange = onPasswordChanged,
-                        label = { Text("Пароль") },
+                        label = { Text("Пароль *") },
                         leadingIcon = { Icon(Lucide.Lock, null) },
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {

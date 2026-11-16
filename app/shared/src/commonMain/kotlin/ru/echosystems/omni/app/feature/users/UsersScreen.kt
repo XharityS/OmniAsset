@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import ru.echosystems.omni.app.feature.equipment.EquipmentField
 import ru.echosystems.omni.app.ui.OmniFilter
+import ru.echosystems.omni.app.ui.RequiredFieldsNote
 
 @Composable
 internal fun UsersScreen(
@@ -41,7 +42,7 @@ internal fun UsersScreen(
     Column(Modifier.fillMaxSize().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { if (draft != null) onChange(null) else onBack() }, enabled = !state.saving) {
+                TextButton(onClick = onBack, enabled = !state.saving) {
                     Text("Назад")
                 }
                 Text("Пользователи", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
@@ -53,7 +54,8 @@ internal fun UsersScreen(
             when {
                 state.loading -> CircularProgressIndicator()
                 draft != null -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    UserFields(draft, state.saving, currentUserId, onChange)
+                    RequiredFieldsNote()
+                    UserFields(draft, state.saving, state.validationAttempted, currentUserId, onChange)
                     Button(onClick = onSave, enabled = !state.saving) {
                         Text(if (state.saving) "Сохранение…" else "Сохранить")
                     }
@@ -77,14 +79,17 @@ internal fun UsersScreen(
 }
 
 @Composable
-private fun UserFields(draft: UserDraft, saving: Boolean, currentUserId: String, onChange: (UserDraft) -> Unit) {
-    EquipmentField("Логин", draft.username, !saving && draft.id == null) { onChange(draft.copy(username = it)) }
-    EquipmentField("ФИО", draft.fullName, !saving) { onChange(draft.copy(fullName = it)) }
+private fun UserFields(draft: UserDraft, saving: Boolean, showErrors: Boolean, currentUserId: String, onChange: (UserDraft) -> Unit) {
+    EquipmentField("Логин", draft.username, !saving && draft.id == null, required = draft.id == null,
+        error = "Укажите логин".takeIf { showErrors && draft.id == null && draft.username.isBlank() }) { onChange(draft.copy(username = it)) }
+    EquipmentField("ФИО", draft.fullName, !saving, required = true,
+        error = "Укажите ФИО".takeIf { showErrors && draft.fullName.isBlank() }) { onChange(draft.copy(fullName = it)) }
     EquipmentField("Электронная почта", draft.email, !saving) { onChange(draft.copy(email = it)) }
     if (draft.id == null) {
         OutlinedTextField(
             draft.password, { onChange(draft.copy(password = it)) },
-            label = { Text("Пароль") },
+            label = { Text("Пароль *") },
+            isError = showErrors && (draft.password.length < 8 || draft.password.encodeToByteArray().size > 72),
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true, enabled = !saving, modifier = Modifier.fillMaxWidth()
         )
@@ -93,7 +98,7 @@ private fun UserFields(draft: UserDraft, saving: Boolean, currentUserId: String,
         Text("Роль: ${UserRole.label(draft.role)}")
     } else {
         OmniFilter(
-            label = "Роль",
+            label = "Роль *",
             selectedId = UserRole.entries.firstOrNull { it.code == draft.role }?.ordinal?.toLong(),
             options = UserRole.entries.map { it.ordinal.toLong() to it.label },
             onSelect = { id -> id?.let { onChange(draft.copy(role = UserRole.entries[it.toInt()].code)) } },

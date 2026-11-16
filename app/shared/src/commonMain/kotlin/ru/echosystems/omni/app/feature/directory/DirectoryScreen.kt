@@ -25,12 +25,14 @@ import ru.echosystems.omni.app.feature.equipment.EquipmentChoice
 import ru.echosystems.omni.app.feature.equipment.EquipmentField
 import ru.echosystems.omni.app.feature.equipment.ReferenceItem
 import ru.echosystems.omni.app.ui.OmniBackground
+import ru.echosystems.omni.app.ui.RequiredFieldsNote
 
 @Composable
 internal fun DirectoryScreen(
     state: DirectoryState,
     onOpen: (DirectoryType) -> Unit,
     onSelect: (DirectoryEntry) -> Unit,
+    onChange: (DirectoryEntry) -> Unit,
     onSave: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -63,7 +65,7 @@ internal fun DirectoryScreen(
                         Modifier.weight(1f).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        DirectoryFields(type, state, draft, onSelect)
+                        DirectoryFields(type, state, draft, onChange)
                         Button(onClick = onSave, enabled = !state.saving) {
                             Text(if (state.saving) "Сохранение…" else "Сохранить")
                         }
@@ -101,7 +103,10 @@ private fun DirectoryFields(
 ) {
     val enabled = !state.saving
     Text(if (draft.id == null) "Новая запись" else "Редактирование", style = MaterialTheme.typography.titleMedium)
-    EquipmentField(if (type == DirectoryType.EMPLOYEES) "ФИО *" else "Название *", draft.name, enabled) {
+    RequiredFieldsNote()
+    val showErrors = state.validationAttempted
+    EquipmentField(if (type == DirectoryType.EMPLOYEES) "ФИО" else "Название", draft.name, enabled,
+        required = true, error = "Заполните поле".takeIf { showErrors && draft.name.isBlank() }) {
         onChange(draft.copy(name = it))
     }
     if (type in setOf(DirectoryType.CATEGORIES, DirectoryType.DEPARTMENTS, DirectoryType.LOCATIONS, DirectoryType.MODELS)) {
@@ -115,10 +120,12 @@ private fun DirectoryFields(
             EquipmentField("Номер кабинета", draft.roomNumber, enabled) { onChange(draft.copy(roomNumber = it)) }
         }
         DirectoryType.MODELS -> {
-            EquipmentChoice("Категория *", draft.categoryId, state.categories.asChoices(), enabled, required = true) {
+            EquipmentChoice("Категория", draft.categoryId, state.categories.asChoices(), enabled, required = true,
+                error = "Выберите категорию".takeIf { showErrors && draft.categoryId == null }) {
                 onChange(draft.copy(categoryId = it))
             }
-            EquipmentChoice("Производитель *", draft.manufacturerId, state.manufacturers.asChoices(), enabled, required = true) {
+            EquipmentChoice("Производитель", draft.manufacturerId, state.manufacturers.asChoices(), enabled, required = true,
+                error = "Выберите производителя".takeIf { showErrors && draft.manufacturerId == null }) {
                 onChange(draft.copy(manufacturerId = it))
             }
             if (state.categories.isEmpty() || state.manufacturers.isEmpty()) {

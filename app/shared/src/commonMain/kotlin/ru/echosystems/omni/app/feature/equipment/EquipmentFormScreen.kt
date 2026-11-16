@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ru.echosystems.omni.app.ui.OmniBackground
 import ru.echosystems.omni.app.ui.OmniFilter
+import ru.echosystems.omni.app.ui.OmniDateField
+import ru.echosystems.omni.app.ui.RequiredFieldsNote
 
 @Composable
 fun EquipmentFormScreen(
@@ -50,6 +52,7 @@ fun EquipmentFormScreen(
                     state.loading -> CircularProgressIndicator()
                     !state.ready -> Button(onClick = onRetry) { Text("Повторить") }
                     else -> {
+                        RequiredFieldsNote()
                         EquipmentFields(state, onChange)
                         Button(onClick = onSave, enabled = !state.saving) {
                             Text(if (state.saving) "Сохранение…" else "Сохранить")
@@ -65,16 +68,18 @@ fun EquipmentFormScreen(
 internal fun EquipmentFields(state: EquipmentFormState, onChange: (EquipmentFormRequest) -> Unit) {
     val draft = state.draft
     val enabled = !state.saving
-    EquipmentField("Инвентарный номер *", draft.inventoryNumber, enabled) {
+    val errors = state.fieldErrors
+    EquipmentField("Инвентарный номер", draft.inventoryNumber, enabled, required = true,
+        error = errors[EquipmentFormField.INVENTORY]) {
         onChange(draft.copy(inventoryNumber = it))
     }
     EquipmentField("Серийный номер", draft.serialNumber, enabled) {
         onChange(draft.copy(serialNumber = it))
     }
-    EquipmentChoice("Модель *", draft.modelId, state.models, enabled, required = true) {
+    EquipmentChoice("Модель", draft.modelId, state.models, enabled, required = true, error = errors[EquipmentFormField.MODEL]) {
         onChange(draft.copy(modelId = it))
     }
-    EquipmentChoice("Статус *", draft.statusId, state.statuses, enabled, required = true) {
+    EquipmentChoice("Статус", draft.statusId, state.statuses, enabled, required = true, error = errors[EquipmentFormField.STATUS]) {
         onChange(draft.copy(statusId = it))
     }
     EquipmentChoice("Расположение", draft.locationId, state.locations, enabled) {
@@ -83,13 +88,13 @@ internal fun EquipmentFields(state: EquipmentFormState, onChange: (EquipmentForm
     EquipmentChoice("Подразделение", draft.departmentId, state.departments, enabled) {
         onChange(draft.copy(departmentId = it))
     }
-    EquipmentField("Дата покупки (ГГГГ-ММ-ДД)", draft.purchaseDate, enabled) {
+    OmniDateField("Дата покупки", draft.purchaseDate, enabled, errors[EquipmentFormField.PURCHASE]) {
         onChange(draft.copy(purchaseDate = it))
     }
-    EquipmentField("Дата ввода (ГГГГ-ММ-ДД)", draft.commissioningDate, enabled) {
+    OmniDateField("Дата ввода", draft.commissioningDate, enabled, errors[EquipmentFormField.COMMISSIONING]) {
         onChange(draft.copy(commissioningDate = it))
     }
-    EquipmentField("Гарантия до (ГГГГ-ММ-ДД)", draft.warrantyUntil, enabled) {
+    OmniDateField("Гарантия до", draft.warrantyUntil, enabled, errors[EquipmentFormField.WARRANTY]) {
         onChange(draft.copy(warrantyUntil = it))
     }
     EquipmentField("Стоимость", draft.purchasePrice, enabled) {
@@ -107,10 +112,14 @@ internal fun EquipmentChoice(
     options: List<ReferenceItem>,
     enabled: Boolean,
     required: Boolean = false,
+    error: String? = null,
     onSelect: (Long?) -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(fieldLabel(label, required), color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            if (error != null) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         OmniFilter(
             label = if (options.isEmpty()) "Справочник пуст" else "Выбрать",
             selectedId = selectedId,
@@ -129,14 +138,20 @@ internal fun EquipmentField(
     value: String?,
     enabled: Boolean,
     singleLine: Boolean = true,
+    required: Boolean = false,
+    error: String? = null,
     onChange: (String) -> Unit
 ) {
     OutlinedTextField(
         value = value.orEmpty(),
         onValueChange = onChange,
-        label = { Text(label) },
+        label = { Text(fieldLabel(label, required)) },
+        isError = error != null,
+        supportingText = if (error != null) ({ Text(error) }) else null,
         enabled = enabled,
         singleLine = singleLine,
         modifier = Modifier.fillMaxWidth()
     )
 }
+
+private fun fieldLabel(label: String, required: Boolean) = if (required) "$label *" else label
