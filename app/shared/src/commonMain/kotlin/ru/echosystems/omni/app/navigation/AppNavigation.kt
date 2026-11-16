@@ -16,6 +16,9 @@ import ru.echosystems.omni.app.core.network.defaultApiBaseUrl
 import ru.echosystems.omni.app.feature.auth.AuthRepository
 import ru.echosystems.omni.app.feature.auth.AuthScreen
 import ru.echosystems.omni.app.feature.auth.AuthViewModel
+import ru.echosystems.omni.app.feature.directory.DirectoryRepository
+import ru.echosystems.omni.app.feature.directory.DirectoryScreen
+import ru.echosystems.omni.app.feature.directory.DirectoryViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentFormScreen
 import ru.echosystems.omni.app.feature.equipment.EquipmentFormViewModel
 import ru.echosystems.omni.app.feature.equipment.EquipmentRepository
@@ -41,6 +44,7 @@ fun AppNavigation() {
     val equipmentViewModel = remember(repository) { EquipmentViewModel(repository) }
     val equipmentState by equipmentViewModel.state.collectAsState()
     var selectedEquipmentId by remember { mutableStateOf<Long?>(null) }
+    var showDirectory by remember { mutableStateOf(false) }
     var showForm by remember { mutableStateOf(false) }
     var showMove by remember { mutableStateOf(false) }
     val canEdit = state.user?.role == "admin"
@@ -52,6 +56,22 @@ fun AppNavigation() {
             state.user == null -> AuthScreen(
                 state, viewModel::onUsernameChanged, viewModel::onPasswordChanged, viewModel::login
             )
+            showDirectory && canEdit -> {
+                val scope = rememberCoroutineScope()
+                val directory = remember(apiClient, scope) {
+                    DirectoryViewModel(DirectoryRepository(apiClient), scope)
+                }
+                val directoryState by directory.state.collectAsState()
+                DirectoryScreen(
+                    directoryState, directory::open, directory::select, directory::save,
+                    onBack = {
+                        if (directoryState.type == null) {
+                            showDirectory = false
+                            equipmentViewModel.loadFilters()
+                        } else directory.back()
+                    }
+                )
+            }
             showMove && canMove && equipmentId != null -> {
                 val scope = rememberCoroutineScope()
                 val move = remember(repository, equipmentId) {
@@ -96,6 +116,7 @@ fun AppNavigation() {
                 onCategory = equipmentViewModel::selectCategory,
                 onLocation = equipmentViewModel::selectLocation,
                 onAdd = if (canEdit) ({ showForm = true }) else null,
+                onDirectory = if (canEdit) ({ showDirectory = true }) else null,
                 onItemClick = { selectedEquipmentId = it }
             )
             else -> {

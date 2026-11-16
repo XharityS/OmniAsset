@@ -53,9 +53,11 @@ GET /api/references/{type}
 
 Административные маршруты требуют роль admin:
 
-POST /api/admin/references/{type} — создание категории, производителя, места или подразделения. Тело: name, description.
+GET /api/admin/references/{type} — список для редактирования с дополнительными полями.
 
-PUT /api/admin/references/{type}/{id} — изменение справочного значения.
+POST /api/admin/references/{type} — создание записи. Поддерживаются categories, manufacturers, locations, departments и models. Поле name обязательно. Категории, подразделения, места и модели принимают description. Для места доступны building и roomNumber, для модели обязательны categoryId и manufacturerId.
+
+PUT /api/admin/references/{type}/{id} — изменение записи. Для building и roomNumber пустая строка очищает поле, отсутствие значения сохраняет текущее.
 
 POST /api/admin/users — создание пользователя. Тело: username, password, fullName, email, role.
 

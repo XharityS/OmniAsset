@@ -19,6 +19,7 @@ import ru.echosystems.omni.auth.AuthRepository
 import ru.echosystems.omni.auth.JwtService
 import ru.echosystems.omni.auth.LoginRequest
 import ru.echosystems.omni.database.ChangeEquipmentStatusRequest
+import ru.echosystems.omni.database.AdminReferenceType
 import ru.echosystems.omni.database.AdminRepository
 import ru.echosystems.omni.database.ReferenceUpsertRequest
 import ru.echosystems.omni.database.UserCreateRequest
@@ -236,21 +237,36 @@ fun Application.module() {
                 call.respondText(csv, io.ktor.http.ContentType.Text.CSV)
             }
 
+            get("/api/admin/references/{type}") {
+                if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
+                    return@get call.respond(HttpStatusCode.Forbidden)
+                val type = AdminReferenceType.fromSlug(call.parameters["type"])
+                    ?: return@get call.respond(HttpStatusCode.BadRequest)
+                call.respond(adminRepository.references(type))
+            }
+
             post("/api/admin/references/{type}") {
                 if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
                     return@post call.respond(HttpStatusCode.Forbidden)
-                val type = call.parameters["type"] ?: return@post call.respond(HttpStatusCode.BadRequest)
-                val id = adminRepository.createReference(type, call.receive<ReferenceUpsertRequest>())
+                val type = AdminReferenceType.fromSlug(call.parameters["type"])
+                    ?: return@post call.respond(HttpStatusCode.BadRequest)
+                val request = call.receive<ReferenceUpsertRequest>()
+                if (!type.accepts(request)) return@post call.respond(HttpStatusCode.BadRequest)
+                val id = call.saveEquipment { adminRepository.createReference(type, request) } ?: return@post
                 call.respond(HttpStatusCode.Created, mapOf("id" to id))
             }
 
             put("/api/admin/references/{type}/{id}") {
                 if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
                     return@put call.respond(HttpStatusCode.Forbidden)
-                val type = call.parameters["type"] ?: return@put call.respond(HttpStatusCode.BadRequest)
+                val type = AdminReferenceType.fromSlug(call.parameters["type"])
+                    ?: return@put call.respond(HttpStatusCode.BadRequest)
                 val id = call.parameters["id"]?.toLongOrNull()
                     ?: return@put call.respond(HttpStatusCode.BadRequest)
-                adminRepository.updateReference(type, id, call.receive<ReferenceUpsertRequest>())
+                val request = call.receive<ReferenceUpsertRequest>()
+                if (!type.accepts(request)) return@put call.respond(HttpStatusCode.BadRequest)
+                val updated = call.saveEquipment { adminRepository.updateReference(type, id, request) } ?: return@put
+                if (!updated) return@put call.respond(HttpStatusCode.NotFound)
                 call.respondText("Reference updated")
             }
 
@@ -285,7 +301,9 @@ fun Application.module() {
             post("/api/admin/employees") {
                 if (call.principal<JWTPrincipal>()?.payload?.getClaim("role")?.asString() != "admin")
                     return@post call.respond(HttpStatusCode.Forbidden)
-                val id = directoryAdminRepository.createEmployee(call.receive<EmployeeUpsertRequest>())
+                val request = call.receive<EmployeeUpsertRequest>()
+                if (request.fullName.isBlank()) return@post call.respond(HttpStatusCode.BadRequest)
+                val id = call.saveEquipment { directoryAdminRepository.createEmployee(request) } ?: return@post
                 call.respond(HttpStatusCode.Created, mapOf("id" to id))
             }
 
@@ -294,7 +312,10 @@ fun Application.module() {
                     return@put call.respond(HttpStatusCode.Forbidden)
                 val id = call.parameters["id"]?.toLongOrNull()
                     ?: return@put call.respond(HttpStatusCode.BadRequest)
-                directoryAdminRepository.updateEmployee(id, call.receive<EmployeeUpsertRequest>())
+                val request = call.receive<EmployeeUpsertRequest>()
+                if (request.fullName.isBlank()) return@put call.respond(HttpStatusCode.BadRequest)
+                val updated = call.saveEquipment { directoryAdminRepository.updateEmployee(id, request) } ?: return@put
+                if (!updated) return@put call.respond(HttpStatusCode.NotFound)
                 call.respondText("Employee updated")
             }
 

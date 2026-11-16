@@ -49,12 +49,12 @@ class DirectoryAdminRepository {
             }
     }
 
-    suspend fun updateEmployee(id: Long, request: EmployeeUpsertRequest) = dbQuery { c ->
+    suspend fun updateEmployee(id: Long, request: EmployeeUpsertRequest): Boolean = dbQuery { c ->
         c.prepareStatement("UPDATE inventory.employees SET full_name=?,position=?,department=?,phone=?,email=? WHERE id=?")
             .use { s ->
                 s.setString(1,request.fullName);s.setString(2,request.position);s.setString(3,request.department)
                 s.setString(4,request.phone);s.setString(5,request.email);s.setLong(6,id)
-                check(s.executeUpdate() == 1) { "Employee not found" }
+                s.executeUpdate() == 1
             }
     }
 

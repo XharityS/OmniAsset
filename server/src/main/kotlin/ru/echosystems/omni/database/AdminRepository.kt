@@ -5,7 +5,56 @@ import org.mindrot.jbcrypt.BCrypt
 import java.util.UUID
 
 @Serializable
-data class ReferenceUpsertRequest(val name: String, val description: String? = null)
+data class ReferenceUpsertRequest(
+    val name: String,
+    val description: String? = null,
+    val building: String? = null,
+    val roomNumber: String? = null,
+    val categoryId: Long? = null,
+    val manufacturerId: Long? = null
+)
+
+@Serializable
+data class AdminReferenceItem(
+    val id: Long,
+    val name: String,
+    val description: String? = null,
+    val building: String? = null,
+    val roomNumber: String? = null,
+    val categoryId: Long? = null,
+    val manufacturerId: Long? = null
+)
+
+enum class AdminReferenceType(val slug: String, val table: String, vararg val columns: String) {
+    CATEGORIES("categories", "equipment_categories", "description"),
+    MANUFACTURERS("manufacturers", "manufacturers"),
+    LOCATIONS("locations", "locations", "description", "building", "room_number"),
+    DEPARTMENTS("departments", "departments", "description"),
+    MODELS("models", "equipment_models", "description", "category_id", "manufacturer_id");
+
+    fun accepts(request: ReferenceUpsertRequest): Boolean =
+        request.name.isNotBlank() && request.name.length <= (if (this == MODELS) 150 else 100) &&
+            when (this) {
+                MODELS -> (request.categoryId ?: 0) > 0 && (request.manufacturerId ?: 0) > 0
+                LOCATIONS -> (request.building?.length ?: 0) <= 100 && (request.roomNumber?.length ?: 0) <= 30
+                else -> true
+            }
+
+    fun values(request: ReferenceUpsertRequest): List<Any?> = listOf(request.name.trim()) + columns.map { column ->
+        when (column) {
+            "description" -> request.description
+            "building" -> request.building
+            "room_number" -> request.roomNumber
+            "category_id" -> request.categoryId
+            "manufacturer_id" -> request.manufacturerId
+            else -> error("Unsupported reference column")
+        }
+    }
+
+    companion object {
+        fun fromSlug(slug: String?) = entries.firstOrNull { it.slug == slug }
+    }
+}
 
 @Serializable
 data class UserCreateRequest(
@@ -17,28 +66,52 @@ data class UserCreateRequest(
 )
 
 class AdminRepository {
-    private val tables = setOf("categories", "manufacturers", "locations", "departments")
-
-    suspend fun createReference(type: String, request: ReferenceUpsertRequest): Long = dbQuery { c ->
-        val table = table(type)
-        c.prepareStatement(
-            "INSERT INTO inventory.$table(name, description) VALUES (?, ?) RETURNING id"
-        ).use { s ->
-            s.setString(1, request.name)
-            s.setString(2, request.description)
-            s.executeQuery().use { r -> r.next(); r.getLong(1) }
+    suspend fun references(type: AdminReferenceType): List<AdminReferenceItem> = dbQuery { connection ->
+        val columns = (listOf("id", "name") + type.columns).joinToString()
+        connection.prepareStatement("SELECT $columns FROM inventory.${type.table} ORDER BY name, id").use { statement ->
+            statement.executeQuery().use { rows ->
+                buildList {
+                    while (rows.next()) add(
+                        AdminReferenceItem(
+                            id = rows.getLong("id"),
+                            name = rows.getString("name"),
+                            description = if ("description" in type.columns) rows.getString("description") else null,
+                            building = if (type == AdminReferenceType.LOCATIONS) rows.getString("building") else null,
+                            roomNumber = if (type == AdminReferenceType.LOCATIONS) rows.getString("room_number") else null,
+                            categoryId = if (type == AdminReferenceType.MODELS) rows.getLong("category_id") else null,
+                            manufacturerId = if (type == AdminReferenceType.MODELS) rows.getLong("manufacturer_id") else null
+                        )
+                    )
+                }
+            }
         }
     }
 
-    suspend fun updateReference(type: String, id: Long, request: ReferenceUpsertRequest) = dbQuery { c ->
-        val table = table(type)
-        c.prepareStatement("UPDATE inventory.$table SET name=?, description=? WHERE id=?").use { s ->
-            s.setString(1, request.name)
-            s.setString(2, request.description)
-            s.setLong(3, id)
-            check(s.executeUpdate() == 1) { "Reference not found" }
+    suspend fun createReference(type: AdminReferenceType, request: ReferenceUpsertRequest): Long = dbQuery { connection ->
+        val columns = listOf("name") + type.columns
+        val placeholders = columns.joinToString { column ->
+            if (column == "building" || column == "room_number") "NULLIF(?, '')" else "?"
+        }
+        val sql = "INSERT INTO inventory.${type.table}(${columns.joinToString()}) VALUES ($placeholders) RETURNING id"
+        connection.prepareStatement(sql).use { statement ->
+            type.values(request).forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+            statement.executeQuery().use { rows -> rows.next(); rows.getLong(1) }
         }
     }
+
+    suspend fun updateReference(type: AdminReferenceType, id: Long, request: ReferenceUpsertRequest): Boolean =
+        dbQuery { connection ->
+            // Older clients only sent name and description for locations.
+            val columns = listOf("name") + type.columns
+            val assignments = columns.joinToString { column ->
+                if (column == "building" || column == "room_number") "$column=NULLIF(COALESCE(?, $column), '')" else "$column=?"
+            }
+            connection.prepareStatement("UPDATE inventory.${type.table} SET $assignments WHERE id=?").use { statement ->
+                type.values(request).forEachIndexed { index, value -> statement.setObject(index + 1, value) }
+                statement.setLong(columns.size + 1, id)
+                statement.executeUpdate() == 1
+            }
+        }
 
     suspend fun createUser(request: UserCreateRequest): UUID = dbQuery { c ->
         require(request.role in setOf("admin", "operator", "viewer")) { "Invalid role" }
@@ -64,11 +137,4 @@ class AdminRepository {
         }
     }
 
-    private fun table(type: String): String = when (type) {
-        "categories" -> "equipment_categories"
-        "manufacturers" -> "manufacturers"
-        "locations" -> "locations"
-        "departments" -> "departments"
-        else -> error("Unsupported reference")
-    }
 }

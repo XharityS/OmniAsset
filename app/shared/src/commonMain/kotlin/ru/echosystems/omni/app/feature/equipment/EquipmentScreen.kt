@@ -49,6 +49,7 @@ fun EquipmentScreen(
     onCategory: (Long?) -> Unit,
     onLocation: (Long?) -> Unit,
     onAdd: (() -> Unit)? = null,
+    onDirectory: (() -> Unit)? = null,
     onItemClick: (Long) -> Unit
 ) {
     var searchFocused by remember { mutableStateOf(false) }
@@ -69,6 +70,8 @@ fun EquipmentScreen(
                     Icon(Lucide.RefreshCw, contentDescription = "Обновить")
                 }
             }
+
+            onDirectory?.let { androidx.compose.material3.TextButton(onClick = it) { Text("Справочники") } }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SummaryCard("Загружено", state.items.size.toString(), Modifier.weight(1f))
